@@ -123,8 +123,43 @@
 
       function oneSignalIsEnabled() {
         try {
-          return Boolean(window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription && window.OneSignal.User.PushSubscription.optedIn);
+          var subscription = window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription;
+          return Boolean(subscription && subscription.optedIn === true);
         } catch (error) {
+          return false;
+        }
+      }
+
+      function waitForNotificationState(expected, timeoutMs) {
+        var startedAt = Date.now();
+        return new Promise(function (resolve) {
+          function check() {
+            var enabled = oneSignalIsEnabled();
+            if (enabled === expected || Date.now() - startedAt >= timeoutMs) {
+              resolve(enabled);
+              return;
+            }
+            window.setTimeout(check, 250);
+          }
+          check();
+        });
+      }
+
+      function sendActivationTestNotification() {
+        if (browserNotificationPermission() !== 'granted' || typeof Notification === 'undefined') {
+          return false;
+        }
+        try {
+          var testNotification = new Notification('MWKCN Class Fund', {
+            body: 'เปิดใช้งานการแจ้งเตือนแล้ว',
+            icon: './icons/icon-192.png',
+            tag: 'mwkcn-notification-enabled',
+            renotify: true
+          });
+          window.setTimeout(function () { try { testNotification.close(); } catch (ignore) {} }, 7000);
+          return true;
+        } catch (error) {
+          console.warn('Local activation notification failed:', error);
           return false;
         }
       }
@@ -157,6 +192,8 @@
           return;
         }
         notificationBusy = true;
+        var finalMessage = '';
+        var finalError = false;
         publishNotificationState(enabled ? 'กำลังขออนุญาตเปิดการแจ้งเตือน...' : 'กำลังปิดการแจ้งเตือน...');
         try {
           var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
@@ -168,15 +205,25 @@
             if (pushSubscription && typeof pushSubscription.optIn === 'function') {
               await pushSubscription.optIn();
             }
-          } else if (pushSubscription && typeof pushSubscription.optOut === 'function') {
-            await pushSubscription.optOut();
+            var enabledAfterOptIn = await waitForNotificationState(true, 8000);
+            if (!enabledAfterOptIn) {
+              throw new Error('ยังเปิดการแจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบสิทธิ์แจ้งเตือนของเว็บไซต์แล้วลองใหม่');
+            }
+            sendActivationTestNotification();
+            finalMessage = 'เปิดรับการแจ้งเตือนแล้ว และส่งการแจ้งเตือนทดสอบไปยังอุปกรณ์แล้ว';
+          } else {
+            if (pushSubscription && typeof pushSubscription.optOut === 'function') {
+              await pushSubscription.optOut();
+            }
+            await waitForNotificationState(false, 4000);
+            finalMessage = 'ปิดรับการแจ้งเตือนแล้ว';
           }
-          publishNotificationState(enabled ? 'เปิดรับการแจ้งเตือนแล้ว' : 'ปิดรับการแจ้งเตือนแล้ว');
         } catch (error) {
-          publishNotificationState(error && error.message ? error.message : 'ไม่สามารถเปลี่ยนสถานะการแจ้งเตือนได้', true);
+          finalMessage = error && error.message ? error.message : 'ไม่สามารถเปลี่ยนสถานะการแจ้งเตือนได้';
+          finalError = true;
         } finally {
           notificationBusy = false;
-          publishNotificationState();
+          publishNotificationState(finalMessage, finalError);
         }
       }
 
