@@ -103,6 +103,7 @@
       const button = document.getElementById('notificationPermissionButton');
       let currentStudentId = '';
       let oneSignalReady = false;
+      let notificationBusy = false;
 
       function cleanStudentId(value) {
         const normalized = String(value == null ? '' : value).trim();
@@ -116,6 +117,69 @@
         button.disabled = Boolean(disabled);
       }
 
+      function browserNotificationPermission() {
+        return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
+      }
+
+      function oneSignalIsEnabled() {
+        try {
+          return Boolean(window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription && window.OneSignal.User.PushSubscription.optedIn);
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function publishNotificationState(message, isError) {
+        if (!appFrame || !appFrame.contentWindow) return;
+        var enabled = oneSignalIsEnabled();
+        var permission = browserNotificationPermission();
+        var state = {
+          type: 'mwkcn:notification-state',
+          enabled: enabled,
+          ready: oneSignalReady,
+          authenticated: Boolean(currentStudentId),
+          permission: permission,
+          busy: notificationBusy,
+          error: Boolean(isError),
+          message: message || (enabled ? 'เปิดรับการแจ้งเตือนแล้ว' : (!currentStudentId ? 'กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน' : (!oneSignalReady ? 'กำลังเตรียมระบบแจ้งเตือน กรุณารอสักครู่' : 'ขณะนี้ยังไม่ได้เปิดรับการแจ้งเตือน')))
+        };
+        appFrame.contentWindow.postMessage(state, '*');
+      }
+
+      async function setNotificationOptIn(enabled) {
+        if (notificationBusy) return;
+        if (!currentStudentId) {
+          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
+          return;
+        }
+        if (!oneSignalReady || !window.OneSignal) {
+          publishNotificationState('ระบบแจ้งเตือนยังโหลดไม่เสร็จ กรุณารอสักครู่', true);
+          return;
+        }
+        notificationBusy = true;
+        publishNotificationState(enabled ? 'กำลังขออนุญาตเปิดการแจ้งเตือน...' : 'กำลังปิดการแจ้งเตือน...');
+        try {
+          var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
+          if (enabled) {
+            await window.OneSignal.Notifications.requestPermission();
+            if (browserNotificationPermission() === 'denied') {
+              throw new Error('เบราว์เซอร์ปิดกั้นการแจ้งเตือน กรุณาอนุญาตจากการตั้งค่าเว็บไซต์');
+            }
+            if (pushSubscription && typeof pushSubscription.optIn === 'function') {
+              await pushSubscription.optIn();
+            }
+          } else if (pushSubscription && typeof pushSubscription.optOut === 'function') {
+            await pushSubscription.optOut();
+          }
+          publishNotificationState(enabled ? 'เปิดรับการแจ้งเตือนแล้ว' : 'ปิดรับการแจ้งเตือนแล้ว');
+        } catch (error) {
+          publishNotificationState(error && error.message ? error.message : 'ไม่สามารถเปลี่ยนสถานะการแจ้งเตือนได้', true);
+        } finally {
+          notificationBusy = false;
+          publishNotificationState();
+        }
+      }
+
       async function identifyOneSignalUser(studentId) {
         const cleanId = cleanStudentId(studentId);
         if (!cleanId) return false;
@@ -125,10 +189,12 @@
             await window.OneSignal.login(cleanId);
           }
           setButtonState('เปิดการแจ้งเตือน', true, false);
+          publishNotificationState();
           return true;
         } catch (error) {
           console.warn('OneSignal user identification failed:', error);
           setButtonState('เปิดการแจ้งเตือน', true, false);
+          publishNotificationState('เชื่อมบัญชีแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่', true);
           return false;
         }
       }
@@ -158,6 +224,15 @@
             });
           }
           setButtonState('เข้าสู่ระบบก่อนเปิดแจ้งเตือน', false, false);
+          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
+          return;
+        }
+        if (event.data.type === 'mwkcn:request-notification-state') {
+          publishNotificationState();
+          return;
+        }
+        if (event.data.type === 'mwkcn:toggle-notification') {
+          setNotificationOptIn(Boolean(event.data.enabled));
         }
       });
 
@@ -197,9 +272,11 @@
           if (currentStudentId) await identifyOneSignalUser(currentStudentId);
           askFrameForStudentId();
           setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+          publishNotificationState();
         } catch (error) {
           console.warn('OneSignal initialization failed:', error);
           setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+          publishNotificationState('ระบบแจ้งเตือนโหลดไม่สำเร็จ กรุณารีเฟรชหน้า', true);
         }
       });
     })();
