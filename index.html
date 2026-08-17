@@ -186,16 +186,21 @@
 
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({
-          appId: APP_ID,
-          serviceWorkerPath: 'push/onesignal/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/mwkcn-class-fund/push/onesignal/' },
-          notifyButton: { enable: false }
-        });
-        oneSignalReady = true;
-        if (currentStudentId) await identifyOneSignalUser(currentStudentId);
-        askFrameForStudentId();
-        setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+        try {
+          await OneSignal.init({
+            appId: APP_ID,
+            serviceWorkerPath: 'push/onesignal/OneSignalSDKWorker.js',
+            serviceWorkerParam: { scope: '/mwkcn-class-fund/push/onesignal/' },
+            notifyButton: { enable: false }
+          });
+          oneSignalReady = true;
+          if (currentStudentId) await identifyOneSignalUser(currentStudentId);
+          askFrameForStudentId();
+          setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+        } catch (error) {
+          console.warn('OneSignal initialization failed:', error);
+          setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+        }
       });
     })();
   </script>
