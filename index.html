@@ -145,8 +145,20 @@
 
       window.addEventListener('message', function (event) {
         if (!allowedFrameOrigins.has(event.origin)) return;
-        if (!event.data || event.data.type !== 'mwkcn:student-identified') return;
-        identifyOneSignalUser(event.data.studentId);
+        if (!event.data) return;
+        if (event.data.type === 'mwkcn:student-identified') {
+          identifyOneSignalUser(event.data.studentId);
+          return;
+        }
+        if (event.data.type === 'mwkcn:student-logged-out') {
+          currentStudentId = '';
+          if (oneSignalReady && window.OneSignal?.logout) {
+            window.OneSignal.logout().catch(function (error) {
+              console.warn('OneSignal logout failed:', error);
+            });
+          }
+          setButtonState('เข้าสู่ระบบก่อนเปิดแจ้งเตือน', false, false);
+        }
       });
 
       button?.addEventListener('click', async function () {
