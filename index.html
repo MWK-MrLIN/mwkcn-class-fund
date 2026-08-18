@@ -147,17 +147,28 @@
         });
       }
 
-      function sendActivationTestNotification() {
-        if (browserNotificationPermission() !== 'granted' || typeof Notification === 'undefined') {
-          return false;
-        }
+      async function sendActivationTestNotification() {
+        if (browserNotificationPermission() !== 'granted') return false;
+        var notificationOptions = {
+          body: 'เปิดใช้งานการแจ้งเตือนแล้ว',
+          icon: './icons/icon-192.png',
+          tag: 'mwkcn-notification-enabled',
+          renotify: true
+        };
         try {
-          var testNotification = new Notification('MWKCN Class Fund', {
-            body: 'เปิดใช้งานการแจ้งเตือนแล้ว',
-            icon: './icons/icon-192.png',
-            tag: 'mwkcn-notification-enabled',
-            renotify: true
-          });
+          if ('serviceWorker' in navigator) {
+            var registration = await navigator.serviceWorker.ready;
+            if (registration && typeof registration.showNotification === 'function') {
+              await registration.showNotification('MWKCN Class Fund', notificationOptions);
+              return true;
+            }
+          }
+        } catch (error) {
+          console.warn('Service worker activation notification failed:', error);
+        }
+        if (typeof Notification === 'undefined') return false;
+        try {
+          var testNotification = new Notification('MWKCN Class Fund', notificationOptions);
           window.setTimeout(function () { try { testNotification.close(); } catch (ignore) {} }, 7000);
           return true;
         } catch (error) {
@@ -211,7 +222,10 @@
             if (!enabledAfterOptIn) {
               throw new Error('ยังเปิดการแจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบสิทธิ์แจ้งเตือนของเว็บไซต์แล้วลองใหม่');
             }
-            sendActivationTestNotification();
+            var notificationShown = await sendActivationTestNotification();
+            if (!notificationShown) {
+              throw new Error('ได้รับอนุญาตแล้ว แต่ระบบปฏิบัติการไม่แสดงการแจ้งเตือนทดสอบ');
+            }
             finalMessage = 'เปิดรับการแจ้งเตือนแล้ว และส่งการแจ้งเตือนทดสอบไปยังอุปกรณ์แล้ว';
           } else {
             if (pushSubscription && typeof pushSubscription.optOut === 'function') {
@@ -318,15 +332,19 @@
           if (permission !== 'granted') {
             throw new Error(permission === 'denied' ? 'เบราว์เซอร์ปิดกั้นการแจ้งเตือน กรุณาอนุญาตจากการตั้งค่าเว็บไซต์' : 'ยังไม่ได้อนุญาตการแจ้งเตือน');
           }
+          var notificationShown = await sendActivationTestNotification();
+          if (!notificationShown) {
+            throw new Error('ได้รับอนุญาตแล้ว แต่ระบบปฏิบัติการไม่แสดงการแจ้งเตือนทดสอบ กรุณาตรวจโหมดห้ามรบกวนของอุปกรณ์');
+          }
           var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
           if (pushSubscription && typeof pushSubscription.optIn === 'function') {
-            await pushSubscription.optIn();
+            try {
+              await pushSubscription.optIn();
+              await waitForNotificationState(true, 8000);
+            } catch (oneSignalError) {
+              console.warn('OneSignal opt-in failed after local confirmation:', oneSignalError);
+            }
           }
-          var enabledAfterOptIn = await waitForNotificationState(true, 8000);
-          if (!enabledAfterOptIn) {
-            throw new Error('ยังเปิดการแจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบการอนุญาตแจ้งเตือนของเว็บไซต์แล้วลองใหม่');
-          }
-          sendActivationTestNotification();
           setButtonState('เปิดแจ้งเตือนแล้ว', true, true);
           publishNotificationState('เปิดใช้งานการแจ้งเตือนแล้ว และส่งข้อความยืนยันไปยังอุปกรณ์แล้ว');
         } catch (error) {
