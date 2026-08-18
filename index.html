@@ -311,11 +311,6 @@
           publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
           return;
         }
-        if (!oneSignalReady || !window.OneSignal) {
-          setButtonState('กำลังเตรียมระบบ...', true, true);
-          publishNotificationState('ระบบแจ้งเตือนยังโหลดไม่เสร็จ กรุณารอสักครู่', true);
-          return;
-        }
         if (typeof Notification === 'undefined') {
           setButtonState('เบราว์เซอร์ไม่รองรับ', true, false);
           publishNotificationState('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน', true);
@@ -336,14 +331,18 @@
           if (!notificationShown) {
             throw new Error('ได้รับอนุญาตแล้ว แต่ระบบปฏิบัติการไม่แสดงการแจ้งเตือนทดสอบ กรุณาตรวจโหมดห้ามรบกวนของอุปกรณ์');
           }
-          var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
-          if (pushSubscription && typeof pushSubscription.optIn === 'function') {
-            try {
-              await pushSubscription.optIn();
-              await waitForNotificationState(true, 8000);
-            } catch (oneSignalError) {
-              console.warn('OneSignal opt-in failed after local confirmation:', oneSignalError);
+          if (oneSignalReady && window.OneSignal) {
+            var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
+            if (pushSubscription && typeof pushSubscription.optIn === 'function') {
+              try {
+                await pushSubscription.optIn();
+                await waitForNotificationState(true, 8000);
+              } catch (oneSignalError) {
+                console.warn('OneSignal opt-in failed after local confirmation:', oneSignalError);
+              }
             }
+          } else {
+            console.warn('OneSignal is not ready; local browser notification was still enabled.');
           }
           setButtonState('เปิดแจ้งเตือนแล้ว', true, true);
           publishNotificationState('เปิดใช้งานการแจ้งเตือนแล้ว และส่งข้อความยืนยันไปยังอุปกรณ์แล้ว');
