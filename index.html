@@ -40,9 +40,10 @@
 
     #notificationPermissionButton {
       position: fixed;
+      top: 14px;
       right: 16px;
-      bottom: calc(16px + env(safe-area-inset-bottom));
-      z-index: 20;
+      bottom: auto;
+      z-index: 100;
       display: none;
       align-items: center;
       gap: 8px;
@@ -68,8 +69,9 @@
 
     @media (max-width: 480px) {
       #notificationPermissionButton {
+        top: 12px;
         right: 12px;
-        bottom: calc(12px + env(safe-area-inset-bottom));
+        bottom: auto;
         min-height: 40px;
         padding-inline: 12px;
         font-size: 13px;
@@ -279,32 +281,66 @@
           return;
         }
         if (event.data.type === 'mwkcn:toggle-notification') {
-          setNotificationOptIn(Boolean(event.data.enabled));
+          if (Boolean(event.data.enabled)) {
+            enableNotificationsFromTopLevel();
+          } else {
+            setNotificationOptIn(false);
+          }
         }
       });
 
-      button?.addEventListener('click', async function () {
+      async function enableNotificationsFromTopLevel() {
+        if (notificationBusy) return;
         if (!currentStudentId) {
-          setButtonState('กรุณาเข้าสู่ระบบก่อน', true, false);
+          setButtonState('กำลังรอการเข้าสู่ระบบ...', true, true);
           askFrameForStudentId();
+          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
           return;
         }
         if (!oneSignalReady || !window.OneSignal) {
           setButtonState('กำลังเตรียมระบบ...', true, true);
+          publishNotificationState('ระบบแจ้งเตือนยังโหลดไม่เสร็จ กรุณารอสักครู่', true);
+          return;
+        }
+        if (typeof Notification === 'undefined') {
+          setButtonState('เบราว์เซอร์ไม่รองรับ', true, false);
+          publishNotificationState('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน', true);
           return;
         }
         button.disabled = true;
+        notificationBusy = true;
+        publishNotificationState('กำลังขอสิทธิ์แจ้งเตือนจากเบราว์เซอร์...');
         try {
-          await window.OneSignal.Notifications.requestPermission();
-          if (window.OneSignal.User?.PushSubscription?.optIn) {
-            await window.OneSignal.User.PushSubscription.optIn();
+          var permission = Notification.permission;
+          if (permission === 'default') {
+            permission = await Notification.requestPermission();
           }
+          if (permission !== 'granted') {
+            throw new Error(permission === 'denied' ? 'เบราว์เซอร์ปิดกั้นการแจ้งเตือน กรุณาอนุญาตจากการตั้งค่าเว็บไซต์' : 'ยังไม่ได้อนุญาตการแจ้งเตือน');
+          }
+          var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
+          if (pushSubscription && typeof pushSubscription.optIn === 'function') {
+            await pushSubscription.optIn();
+          }
+          var enabledAfterOptIn = await waitForNotificationState(true, 8000);
+          if (!enabledAfterOptIn) {
+            throw new Error('ยังเปิดการแจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบการอนุญาตแจ้งเตือนของเว็บไซต์แล้วลองใหม่');
+          }
+          sendActivationTestNotification();
           setButtonState('เปิดแจ้งเตือนแล้ว', true, true);
+          publishNotificationState('เปิดใช้งานการแจ้งเตือนแล้ว และส่งข้อความยืนยันไปยังอุปกรณ์แล้ว');
         } catch (error) {
-          console.warn('OneSignal permission request failed:', error);
+          console.warn('Top-level notification permission failed:', error);
           setButtonState('เปิดการแจ้งเตือน', true, false);
+          publishNotificationState(error && error.message ? error.message : 'ไม่สามารถเปิดการแจ้งเตือนได้', true);
+        } finally {
+          notificationBusy = false;
+          button.disabled = false;
+          publishNotificationState();
         }
-      });
+      }
+
+      button?.addEventListener('click', enableNotificationsFromTopLevel);
 
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async function (OneSignal) {
