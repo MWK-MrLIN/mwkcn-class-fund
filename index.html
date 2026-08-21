@@ -434,7 +434,7 @@
       window.addEventListener('message', function(event) {
         if (!allowedOrigins.has(event.origin) || !event.data) return;
         if (event.data.type === 'mwkcn:request-sound-state') { publish(); return; }
-        if (event.data.type === 'mwkcn:toggle-sound') { soundEnabled = Boolean(event.data.enabled); localStorage.setItem(SOUND_KEY, String(soundEnabled)); publish(); if (soundEnabled) play('success'); return; }
+        if (event.data.type === 'mwkcn:toggle-sound') { soundEnabled = Boolean(event.data.enabled); localStorage.setItem(SOUND_KEY, String(soundEnabled)); publish(); return; }
         if (event.data.type === 'mwkcn:play-sound') { play(String(event.data.sound || '')); }
       });
       if (appFrame) appFrame.addEventListener('load', publish);
