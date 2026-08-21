@@ -407,5 +407,39 @@
       });
     }
   </script>
+
+  <script id="mwkcn-sound-bridge">
+    (function initMwkcnSoundBridge() {
+      const SOUND_KEY = 'MWKCN_SOUND_EFFECTS_ENABLED';
+      const soundFiles = {
+        click: './sounds/click.mp3',
+        notification: './sounds/notification-pop.mp3',
+        success: './sounds/task-done.mp3',
+        error: './sounds/error-soft.mp3',
+        reward: './sounds/badge-unlock.mp3'
+      };
+      const allowedOrigins = new Set(['https://script.google.com', 'https://script.googleusercontent.com']);
+      let soundEnabled = localStorage.getItem(SOUND_KEY) === 'true';
+      function publish() { if (appFrame && appFrame.contentWindow) appFrame.contentWindow.postMessage({ type:'mwkcn:sound-state', enabled:soundEnabled }, '*'); }
+      function play(name) {
+        if (!soundEnabled || !soundFiles[name]) return;
+        try {
+          const audio = new Audio(soundFiles[name]);
+          audio.volume = name === 'click' ? 0.18 : 0.32;
+          const promise = audio.play();
+          if (promise && typeof promise.catch === 'function') promise.catch(() => {});
+        } catch (error) { console.warn('MWKCN sound playback failed:', error); }
+      }
+      const appFrame = document.getElementById('appFrame');
+      window.addEventListener('message', function(event) {
+        if (!allowedOrigins.has(event.origin) || !event.data) return;
+        if (event.data.type === 'mwkcn:request-sound-state') { publish(); return; }
+        if (event.data.type === 'mwkcn:toggle-sound') { soundEnabled = Boolean(event.data.enabled); localStorage.setItem(SOUND_KEY, String(soundEnabled)); publish(); if (soundEnabled) play('success'); return; }
+        if (event.data.type === 'mwkcn:play-sound') { play(String(event.data.sound || '')); }
+      });
+      if (appFrame) appFrame.addEventListener('load', publish);
+    })();
+  </script>
+
 </body>
 </html>
