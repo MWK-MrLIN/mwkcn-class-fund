@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <base target="_top">
+  <title>MWKCN Class Fund · Violation</title>
+
+  <!-- PWA: ชื่อแอปและไอคอนจริงจากโลโก้ MWKCN -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
+  <meta name="theme-color" content="#1769e0">
+  <meta name="apple-mobile-web-app-title" content="MWKCN Class Fund">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- OneSignal Web Push SDK: ใช้ App ID สาธารณะเท่านั้น -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      overflow: hidden;
+      background: #f3f6fb;
+    }
+
+    iframe {
+      position: fixed;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      border: 0;
+    }
+
+    #notificationPermissionButton {
+      position: fixed;
+      top: 14px;
+      right: 16px;
+      bottom: auto;
+      z-index: 100;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 999px;
+      color: #fff;
+      background: #1769e0;
+      box-shadow: 0 10px 24px rgba(23, 105, 224, .28);
+      font: 700 14px Sarabun, sans-serif;
+      cursor: pointer;
+    }
+
+    #notificationPermissionButton.is-ready {
+      display: inline-flex;
+    }
+
+    #notificationPermissionButton:disabled {
+      opacity: .65;
+      cursor: wait;
+    }
+
+    @media (max-width: 480px) {
+      #notificationPermissionButton {
+        top: 12px;
+        right: 12px;
+        bottom: auto;
+        min-height: 40px;
+        padding-inline: 12px;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    id="appFrame"
+    src="about:blank"
+    title="MWKCN Class Fund"
+    loading="eager"
+    allow="fullscreen; notifications">
+  </iframe>
+
+  <button id="notificationPermissionButton" type="button" aria-label="เปิดการแจ้งเตือน">
+    <span aria-hidden="true">🔔</span>
+    <span>เปิดการแจ้งเตือน</span>
+  </button>
+
+  <script>
+    (function initMwkcnOneSignal() {
+      const appFrame = document.getElementById('appFrame');
+      const APP_ID = 'b9217e22-0f2e-41bc-821a-df4de8fd7035';
+      const WRAPPER_ORIGIN = window.location.origin;
+      const allowedFrameOrigins = new Set([
+        'https://script.google.com',
+        'https://script.googleusercontent.com'
+      ]);
+      const button = document.getElementById('notificationPermissionButton');
+      let currentStudentId = '';
+      let oneSignalReady = false;
+      let notificationBusy = false;
+
+      function cleanStudentId(value) {
+        const normalized = String(value == null ? '' : value).trim();
+        return /^[A-Za-z0-9_-]{3,64}$/.test(normalized) ? normalized : '';
+      }
+
+      function setButtonState(text, visible, disabled) {
+        if (!button) return;
+        button.querySelector('span:last-child').textContent = text;
+        button.classList.toggle('is-ready', Boolean(visible));
+        button.disabled = Boolean(disabled);
+      }
+
+      function browserNotificationPermission() {
+        return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
+      }
+
+      function oneSignalIsEnabled() {
+        try {
+          var subscription = window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription;
+          return Boolean(subscription && subscription.optedIn === true);
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function waitForNotificationState(expected, timeoutMs) {
+        var startedAt = Date.now();
+        return new Promise(function (resolve) {
+          function check() {
+            var enabled = oneSignalIsEnabled();
+            if (enabled === expected || Date.now() - startedAt >= timeoutMs) {
+              resolve(enabled);
+              return;
+            }
+            window.setTimeout(check, 250);
+          }
+          check();
+        });
+      }
+
+      async function sendActivationTestNotification() {
+        if (browserNotificationPermission() !== 'granted') return false;
+        var notificationOptions = {
+          body: 'เปิดใช้งานการแจ้งเตือนแล้ว',
+          icon: './icons/icon-192.png',
+          tag: 'mwkcn-notification-enabled',
+          renotify: true
+        };
+        try {
+          if ('serviceWorker' in navigator) {
+            var registration = await navigator.serviceWorker.ready;
+            if (registration && typeof registration.showNotification === 'function') {
+              await registration.showNotification('MWKCN Class Fund', notificationOptions);
+              return true;
+            }
+          }
+        } catch (error) {
+          console.warn('Service worker activation notification failed:', error);
+        }
+        if (typeof Notification === 'undefined') return false;
+        try {
+          var testNotification = new Notification('MWKCN Class Fund', notificationOptions);
+          window.setTimeout(function () { try { testNotification.close(); } catch (ignore) {} }, 7000);
+          return true;
+        } catch (error) {
+          console.warn('Local activation notification failed:', error);
+          return false;
+        }
+      }
+
+      function publishNotificationState(message, isError) {
+        if (!appFrame || !appFrame.contentWindow) return;
+        var enabled = oneSignalIsEnabled();
+        var permission = browserNotificationPermission();
+        var state = {
+          type: 'mwkcn:notification-state',
+          enabled: enabled,
+          ready: oneSignalReady,
+          authenticated: Boolean(currentStudentId),
+          permission: permission,
+          busy: notificationBusy,
+          error: Boolean(isError),
+          message: message || (enabled ? 'เปิดรับการแจ้งเตือนแล้ว' : (!currentStudentId ? 'กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน' : (!oneSignalReady ? 'กำลังเตรียมระบบแจ้งเตือน กรุณารอสักครู่' : 'ขณะนี้ยังไม่ได้เปิดรับการแจ้งเตือน')))
+        };
+        appFrame.contentWindow.postMessage(state, '*');
+      }
+
+      async function setNotificationOptIn(enabled) {
+        if (notificationBusy) return;
+        if (!currentStudentId) {
+          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
+          return;
+        }
+        if (!oneSignalReady || !window.OneSignal) {
+          publishNotificationState('ระบบแจ้งเตือนยังโหลดไม่เสร็จ กรุณารอสักครู่', true);
+          return;
+        }
+        notificationBusy = true;
+        var finalMessage = '';
+        var finalError = false;
+        publishNotificationState(enabled ? 'กำลังขออนุญาตเปิดการแจ้งเตือน...' : 'กำลังปิดการแจ้งเตือน...');
+        try {
+          var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
+          if (enabled) {
+            await window.OneSignal.Notifications.requestPermission();
+            if (browserNotificationPermission() === 'denied') {
+              throw new Error('เบราว์เซอร์ปิดกั้นการแจ้งเตือน กรุณาอนุญาตจากการตั้งค่าเว็บไซต์');
+            }
+            if (pushSubscription && typeof pushSubscription.optIn === 'function') {
+              await pushSubscription.optIn();
+            }
+            var enabledAfterOptIn = await waitForNotificationState(true, 8000);
+            if (!enabledAfterOptIn) {
+              throw new Error('ยังเปิดการแจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบสิทธิ์แจ้งเตือนของเว็บไซต์แล้วลองใหม่');
+            }
+            var notificationShown = await sendActivationTestNotification();
+            if (!notificationShown) {
+              throw new Error('ได้รับอนุญาตแล้ว แต่ระบบปฏิบัติการไม่แสดงการแจ้งเตือนทดสอบ');
+            }
+            finalMessage = 'เปิดรับการแจ้งเตือนแล้ว และส่งการแจ้งเตือนทดสอบไปยังอุปกรณ์แล้ว';
+          } else {
+            if (pushSubscription && typeof pushSubscription.optOut === 'function') {
+              await pushSubscription.optOut();
+            }
+            await waitForNotificationState(false, 4000);
+            finalMessage = 'ปิดรับการแจ้งเตือนแล้ว';
+          }
+        } catch (error) {
+          finalMessage = error && error.message ? error.message : 'ไม่สามารถเปลี่ยนสถานะการแจ้งเตือนได้';
+          finalError = true;
+        } finally {
+          notificationBusy = false;
+          publishNotificationState(finalMessage, finalError);
+        }
+      }
+
+      async function identifyOneSignalUser(studentId) {
+        const cleanId = cleanStudentId(studentId);
+        if (!cleanId) return false;
+        currentStudentId = cleanId;
+        try {
+          if (oneSignalReady && window.OneSignal && window.OneSignal.login) {
+            await window.OneSignal.login(cleanId);
+          }
+          setButtonState('เปิดการแจ้งเตือน', true, false);
+          publishNotificationState();
+          return true;
+        } catch (error) {
+          console.warn('OneSignal user identification failed:', error);
+          setButtonState('เปิดการแจ้งเตือน', true, false);
+          publishNotificationState('เชื่อมบัญชีแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่', true);
+          return false;
+        }
+      }
+
+      function askFrameForStudentId() {
+        try {
+          if (appFrame && appFrame.contentWindow) {
+            appFrame.contentWindow.postMessage({ type: 'mwkcn:request-student-id' }, '*');
+          }
+        } catch (error) {
+          console.warn('Unable to request student ID from Apps Script frame:', error);
+        }
+      }
+
+      window.addEventListener('message', function (event) {
+        if (!allowedFrameOrigins.has(event.origin)) return;
+        if (!event.data) return;
+        if (event.data.type === 'mwkcn:student-identified') {
+          identifyOneSignalUser(event.data.studentId);
+          return;
+        }
+        if (event.data.type === 'mwkcn:student-logged-out') {
+          currentStudentId = '';
+          if (oneSignalReady && window.OneSignal?.logout) {
+            window.OneSignal.logout().catch(function (error) {
+              console.warn('OneSignal logout failed:', error);
+            });
+          }
+          setButtonState('เข้าสู่ระบบก่อนเปิดแจ้งเตือน', false, false);
+          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
+          return;
+        }
+        if (event.data.type === 'mwkcn:request-notification-state') {
+          publishNotificationState();
+          return;
+        }
+        if (event.data.type === 'mwkcn:toggle-notification') {
+          if (Boolean(event.data.enabled)) {
+            enableNotificationsFromTopLevel();
+          } else {
+            setNotificationOptIn(false);
+          }
+        }
+      });
+
+      async function enableNotificationsFromTopLevel() {
+        if (notificationBusy) return;
+        if (!currentStudentId) {
+          setButtonState('กำลังรอการเข้าสู่ระบบ...', true, true);
+          askFrameForStudentId();
+          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
+          return;
+        }
+        if (typeof Notification === 'undefined') {
+          setButtonState('เบราว์เซอร์ไม่รองรับ', true, false);
+          publishNotificationState('เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือน', true);
+          return;
+        }
+        button.disabled = true;
+        notificationBusy = true;
+        publishNotificationState('กำลังขอสิทธิ์แจ้งเตือนจากเบราว์เซอร์...');
+        try {
+          var permission = Notification.permission;
+          if (permission === 'default') {
+            permission = await Notification.requestPermission();
+          }
+          if (permission !== 'granted') {
+            throw new Error(permission === 'denied' ? 'เบราว์เซอร์ปิดกั้นการแจ้งเตือน กรุณาอนุญาตจากการตั้งค่าเว็บไซต์' : 'ยังไม่ได้อนุญาตการแจ้งเตือน');
+          }
+          var notificationShown = await sendActivationTestNotification();
+          if (!notificationShown) {
+            throw new Error('ได้รับอนุญาตแล้ว แต่ระบบปฏิบัติการไม่แสดงการแจ้งเตือนทดสอบ กรุณาตรวจโหมดห้ามรบกวนของอุปกรณ์');
+          }
+          if (oneSignalReady && window.OneSignal) {
+            var pushSubscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
+            if (pushSubscription && typeof pushSubscription.optIn === 'function') {
+              try {
+                await pushSubscription.optIn();
+                await waitForNotificationState(true, 8000);
+              } catch (oneSignalError) {
+                console.warn('OneSignal opt-in failed after local confirmation:', oneSignalError);
+              }
+            }
+          } else {
+            console.warn('OneSignal is not ready; local browser notification was still enabled.');
+          }
+          setButtonState('เปิดแจ้งเตือนแล้ว', true, true);
+          publishNotificationState('เปิดใช้งานการแจ้งเตือนแล้ว และส่งข้อความยืนยันไปยังอุปกรณ์แล้ว');
+        } catch (error) {
+          console.warn('Top-level notification permission failed:', error);
+          setButtonState('เปิดการแจ้งเตือน', true, false);
+          publishNotificationState(error && error.message ? error.message : 'ไม่สามารถเปิดการแจ้งเตือนได้', true);
+        } finally {
+          notificationBusy = false;
+          button.disabled = false;
+          publishNotificationState();
+        }
+      }
+
+      button?.addEventListener('click', enableNotificationsFromTopLevel);
+
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function (OneSignal) {
+        try {
+          await OneSignal.init({
+            appId: APP_ID,
+            serviceWorkerPath: 'push/onesignal/OneSignalSDKWorker.js',
+            serviceWorkerParam: { scope: '/mwkcn-class-fund/push/onesignal/' },
+            notifyButton: { enable: false }
+          });
+          oneSignalReady = true;
+          if (currentStudentId) await identifyOneSignalUser(currentStudentId);
+          askFrameForStudentId();
+          setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+          publishNotificationState();
+        } catch (error) {
+          console.warn('OneSignal initialization failed:', error);
+          setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
+          publishNotificationState('ระบบแจ้งเตือนโหลดไม่สำเร็จ กรุณารีเฟรชหน้า', true);
+        }
+      });
+    })();
+  </script>
+
+  <script>
+    (function loadAppsScriptPageInsideWrapper() {
+      const appFrame = document.getElementById('appFrame');
+      const appUrl = new URL('https://script.google.com/macros/s/AKfycbyP5P3eZYr0BF4LacWmkO2mOahm9Go4uuAnk8bTu97f7r7jdwQUEOttJqQUyRtQQKAX/exec');
+      const wrapperParams = new URLSearchParams(window.location.search);
+
+      // หน้า GitHub Pages นี้เป็นหน้าบันทึกการทำผิดกฎของเว็บไซต์เดิม
+      appUrl.searchParams.set('page', 'violation');
+      if (wrapperParams.has('id')) {
+        appUrl.searchParams.set('id', wrapperParams.get('id'));
+      }
+      if (wrapperParams.has('from')) {
+        appUrl.searchParams.set('from', wrapperParams.get('from'));
+      }
+
+      appFrame.src = appUrl.toString();
+    })();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+          .catch(function (error) {
+            console.warn('PWA service worker registration failed:', error);
+          });
+      });
+    }
+  </script>
+
+  <script id="mwkcn-sound-bridge">
+    (function initMwkcnSoundBridge() {
+      const SOUND_KEY = 'MWKCN_SOUND_EFFECTS_ENABLED';
+      const soundFiles = {
+        click: './sounds/click.mp3',
+        notification: './sounds/notification-pop.mp3',
+        success: './sounds/task-done.mp3',
+        error: './sounds/error-soft.mp3',
+        reward: './sounds/badge-unlock.mp3'
+      };
+      const allowedOrigins = new Set(['https://script.google.com', 'https://script.googleusercontent.com']);
+      let soundEnabled = localStorage.getItem(SOUND_KEY) === 'true';
+      function publish() { if (appFrame && appFrame.contentWindow) appFrame.contentWindow.postMessage({ type:'mwkcn:sound-state', enabled:soundEnabled }, '*'); }
+      function play(name) {
+        if (!soundEnabled || !soundFiles[name]) return;
+        try {
+          const audio = new Audio(soundFiles[name]);
+          audio.volume = name === 'click' ? 0.18 : 0.32;
+          const promise = audio.play();
+          if (promise && typeof promise.catch === 'function') promise.catch(() => {});
+        } catch (error) { console.warn('MWKCN sound playback failed:', error); }
+      }
+      const appFrame = document.getElementById('appFrame');
+      window.addEventListener('message', function(event) {
+        if (!allowedOrigins.has(event.origin) || !event.data) return;
+        if (event.data.type === 'mwkcn:request-sound-state') { publish(); return; }
+        if (event.data.type === 'mwkcn:toggle-sound') { soundEnabled = Boolean(event.data.enabled); localStorage.setItem(SOUND_KEY, String(soundEnabled)); publish(); return; }
+        if (event.data.type === 'mwkcn:play-sound') { play(String(event.data.sound || '')); }
+      });
+      if (appFrame) appFrame.addEventListener('load', publish);
+    })();
+  </script>
+
+</body>
+</html>
