@@ -245,6 +245,18 @@
         }
       }
 
+      async function restoreNotificationSubscription() {
+        if (!oneSignalReady || !window.OneSignal || browserNotificationPermission() !== 'granted') return false;
+        try {
+          var subscription = window.OneSignal.User && window.OneSignal.User.PushSubscription;
+          if (subscription && subscription.optedIn !== true && typeof subscription.optIn === 'function') {
+            await subscription.optIn();
+            await waitForNotificationState(true, 8000);
+          }
+          return oneSignalIsEnabled();
+        } catch (error) { console.warn('OneSignal subscription restore failed:', error); return false; }
+      }
+
       async function identifyOneSignalUser(studentId) {
         const cleanId = cleanStudentId(studentId);
         if (!cleanId) return false;
@@ -252,8 +264,9 @@
         try {
           if (oneSignalReady && window.OneSignal && window.OneSignal.login) {
             await window.OneSignal.login(cleanId);
+            await restoreNotificationSubscription();
           }
-          setButtonState('เปิดการแจ้งเตือน', true, false);
+          if (oneSignalIsEnabled()) { setButtonState('แจ้งเตือนเปิดอยู่', true, true); } else { setButtonState('เปิดการแจ้งเตือน', true, false); }
           publishNotificationState();
           return true;
         } catch (error) {
