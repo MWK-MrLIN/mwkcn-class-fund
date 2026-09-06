@@ -58,7 +58,8 @@
       cursor: pointer;
     }
 
-    #notificationPermissionButton.is-ready {
+    #notificationPermissionButton.is-ready,
+    #notificationPermissionButton.is-waiting {
       display: inline-flex;
     }
 
@@ -116,6 +117,7 @@
         if (!button) return;
         button.querySelector('span:last-child').textContent = text;
         button.classList.toggle('is-ready', Boolean(visible));
+        button.classList.toggle('is-waiting', Boolean(visible) && !currentStudentId);
         button.disabled = Boolean(disabled);
       }
 
@@ -265,7 +267,7 @@
       function askFrameForStudentId() {
         try {
           if (appFrame && appFrame.contentWindow) {
-            appFrame.contentWindow.postMessage({ type: 'mwkcn:request-student-id' }, '*');
+            appFrame.contentWindow.postMessage({ type: 'mwkcn:request-student-id' }, WRAPPER_ORIGIN);
           }
         } catch (error) {
           console.warn('Unable to request student ID from Apps Script frame:', error);
@@ -275,6 +277,7 @@
       window.addEventListener('message', function (event) {
         if (!allowedFrameOrigins.has(event.origin)) return;
         if (!event.data) return;
+        if (event.source !== appFrame.contentWindow) return;
         if (event.data.type === 'mwkcn:student-identified') {
           identifyOneSignalUser(event.data.studentId);
           return;
@@ -306,9 +309,9 @@
       async function enableNotificationsFromTopLevel() {
         if (notificationBusy) return;
         if (!currentStudentId) {
-          setButtonState('กำลังรอการเข้าสู่ระบบ...', true, true);
+          setButtonState('เข้าสู่ระบบก่อนเปิดแจ้งเตือน', true, false);
           askFrameForStudentId();
-          publishNotificationState('กรุณาเข้าสู่ระบบก่อนเปิดการแจ้งเตือน', true);
+          publishNotificationState('กรุณาเข้าสู่ระบบในหน้าเว็บก่อน แล้วกดปุ่มนี้อีกครั้ง', true);
           return;
         }
         if (typeof Notification === 'undefined') {
@@ -358,6 +361,9 @@
       }
 
       button?.addEventListener('click', enableNotificationsFromTopLevel);
+      setButtonState('เข้าสู่ระบบก่อนเปิดแจ้งเตือน', true, false);
+      if (appFrame) appFrame.addEventListener('load', function () { window.setTimeout(askFrameForStudentId, 250); window.setTimeout(askFrameForStudentId, 1500); });
+      window.setInterval(function () { if (!currentStudentId) askFrameForStudentId(); }, 5000);
 
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async function (OneSignal) {
