@@ -120,7 +120,7 @@
         finally { registerButton.disabled = false; }
       });
       function renderButton() {
-        if (GOOGLE_CLIENT_ID.indexOf('745551921574-bt1l1eakmhtsao6a2mmfr0rl4o5nkk87.apps.googleusercontent.com') === 0) { setStatus('ผู้ดูแลระบบต้องตั้งค่า Google Client ID ก่อนใช้งาน', true); return; }
+        if (GOOGLE_CLIENT_ID.indexOf('YOUR_') === 0) { setStatus('ผู้ดูแลระบบต้องตั้งค่า Google Client ID ก่อนใช้งาน', true); return; }
         if (!window.google || !google.accounts || !google.accounts.id) { window.setTimeout(renderButton, 200); return; }
         google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredential, ux_mode: 'popup', auto_select: false });
         google.accounts.id.renderButton(document.getElementById('googleButton'), { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', logo_alignment: 'left', width: 320, locale: 'th' });
