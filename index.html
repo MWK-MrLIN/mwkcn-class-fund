@@ -14,8 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="MWKCN Class Fund">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <!-- Google Identity Services และ OneSignal ใช้เฉพาะค่าที่เปิดเผยได้ -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- OneSignal Web Push SDK: ใช้ App ID สาธารณะเท่านั้น -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 
   <style>
@@ -39,18 +38,6 @@
       border: 0;
     }
 
-    #googleAuthGate { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: linear-gradient(145deg,#eef5ff,#f8fbff 55%,#eaf7ff); font-family: Sarabun,system-ui,sans-serif; }
-    .google-auth-card { width: min(100%,430px); padding: 30px 24px 24px; border: 1px solid rgba(255,255,255,.95); border-radius: 26px; background: rgba(255,255,255,.92); box-shadow: 0 24px 70px rgba(35,76,130,.18); text-align: center; }
-    .google-auth-card h1 { margin: 0; color: #142033; font-size: 1.5rem; }
-    .google-auth-card p { margin: 9px 0 20px; color: #68778d; line-height: 1.65; }
-    #googleButton { display: flex; justify-content: center; min-height: 44px; }
-    #googleRegister { display: none; margin-top: 18px; text-align: left; }
-    #googleRegister label { display: block; margin-bottom: 7px; color: #43536a; font-weight: 700; }
-    #googleStudentId { width: 100%; padding: 12px 13px; border: 1px solid #d7e2f0; border-radius: 12px; font: inherit; font-size: 1rem; }
-    #googleRegister button { width: 100%; margin-top: 11px; padding: 12px; border: 0; border-radius: 12px; color: white; background: #1769e0; font: inherit; font-weight: 800; cursor: pointer; }
-    #googleAuthStatus { min-height: 24px; margin-top: 15px; color: #68778d; font-size: .9rem; }
-    #googleAuthStatus.error { color: #b42318; }
-
   </style>
 </head>
 <body>
@@ -62,72 +49,7 @@
     allow="fullscreen; notifications">
   </iframe>
 
-  <section id="googleAuthGate" aria-labelledby="googleAuthTitle">
-    <div class="google-auth-card">
-      <h1 id="googleAuthTitle">เข้าสู่ระบบด้วย Google</h1>
-      <p>เลือกบัญชี Google ของคุณ หากยังไม่เคยเชื่อมบัญชี ระบบจะให้ลงทะเบียนด้วยเลขประจำตัวนักเรียนครั้งเดียว</p>
-      <div id="googleButton"></div>
-      <div id="googleRegister">
-        <label for="googleStudentId">เลขประจำตัวนักเรียน 5 หลัก</label>
-        <input id="googleStudentId" inputmode="numeric" autocomplete="off" maxlength="5" pattern="[0-9]{5}" placeholder="เช่น 12345">
-        <button id="googleRegisterButton" type="button">ลงทะเบียนบัญชี Google</button>
-      </div>
-      <div id="googleAuthStatus" role="status" aria-live="polite"></div>
-    </div>
-  </section>
 
-
-
-  <script>
-    (function initGoogleStudentAuth() {
-      const GOOGLE_CLIENT_ID = '745551921574-bt1l1eakmhtsao6a2mmfr0rl4o5nkk87.apps.googleusercontent.com';
-      const AUTH_API_URL = 'https://script.google.com/macros/s/AKfycbyP5P3eZYr0BF4LacWmkO2mOahm9Go4uuAnk8bTu97f7r7jdwQUEOttJqQUyRtQQKAX/exec';
-      const gate = document.getElementById('googleAuthGate');
-      const status = document.getElementById('googleAuthStatus');
-      const register = document.getElementById('googleRegister');
-      const studentInput = document.getElementById('googleStudentId');
-      const registerButton = document.getElementById('googleRegisterButton');
-      let credential = '';
-      function setStatus(message, error) { status.textContent = message || ''; status.classList.toggle('error', Boolean(error)); }
-      async function api(action, payload) {
-        const body = new URLSearchParams({ action: action });
-        Object.keys(payload || {}).forEach(function (key, index) { body.set('arg' + index, JSON.stringify(payload[key])); });
-        return fetch(AUTH_API_URL, { method: 'POST', body: body }).then(function (response) { return response.json(); });
-      }
-      function openApp(studentId) {
-        const frame = document.getElementById('appFrame');
-        if (frame && frame.contentWindow) frame.contentWindow.postMessage({ type: 'mwkcn:google-authenticated', studentId: studentId }, '*');
-        gate.style.display = 'none';
-        window.dispatchEvent(new CustomEvent('mwkcn:student-authenticated', { detail: { studentId: studentId } }));
-      }
-      async function handleCredential(response) {
-        credential = response && response.credential ? response.credential : '';
-        if (!credential) { setStatus('ไม่พบข้อมูลบัญชี Google', true); return; }
-        setStatus('กำลังตรวจสอบบัญชี Google...'); register.style.display = 'none';
-        try {
-          const result = await api('googleLogin', { credential: credential });
-          if (result && result.linked && result.studentId) { setStatus('เข้าสู่ระบบสำเร็จ'); openApp(result.studentId); }
-          else if (result && result.needsRegistration) { register.style.display = 'block'; setStatus('บัญชีนี้ยังไม่ได้เชื่อมกับเลขประจำตัว กรุณาลงทะเบียน'); studentInput.focus(); }
-          else setStatus((result && result.reason) || 'เข้าสู่ระบบไม่สำเร็จ', true);
-        } catch (error) { setStatus('เชื่อมต่อระบบยืนยันตัวตนไม่สำเร็จ กรุณาลองใหม่', true); console.error(error); }
-      }
-      registerButton.addEventListener('click', async function () {
-        const studentId = studentInput.value.replace(/\D/g, '');
-        if (!/^\d{5}$/.test(studentId)) { setStatus('กรุณากรอกเลขประจำตัวนักเรียน 5 หลัก', true); return; }
-        registerButton.disabled = true; setStatus('กำลังลงทะเบียนบัญชี Google...');
-        try { const result = await api('registerGoogleStudent', { credential: credential, studentId: studentId }); if (result && result.success) openApp(result.studentId); else setStatus((result && result.reason) || 'ลงทะเบียนไม่สำเร็จ', true); }
-        catch (error) { setStatus('ลงทะเบียนไม่สำเร็จ กรุณาลองใหม่', true); console.error(error); }
-        finally { registerButton.disabled = false; }
-      });
-      function renderButton() {
-        if (GOOGLE_CLIENT_ID.indexOf('YOUR_') === 0) { setStatus('ผู้ดูแลระบบต้องตั้งค่า Google Client ID ก่อนใช้งาน', true); return; }
-        if (!window.google || !google.accounts || !google.accounts.id) { window.setTimeout(renderButton, 200); return; }
-        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleCredential, ux_mode: 'popup', auto_select: false });
-        google.accounts.id.renderButton(document.getElementById('googleButton'), { type: 'standard', theme: 'outline', size: 'large', text: 'signin_with', shape: 'rectangular', logo_alignment: 'left', width: 320, locale: 'th' });
-      }
-      renderButton();
-    })();
-  </script>
 
   <script>
     (function initMwkcnOneSignal() {
