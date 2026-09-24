@@ -356,6 +356,7 @@
     var credential = '';
     var state = 'google';
     var lastMessage = null;
+    var bridgeReady = false;
     var authTimer = null;
 
     var gate = document.createElement('section');
@@ -392,8 +393,8 @@
     }
     function showApp(){ gate.classList.add('is-complete'); frame.style.visibility='visible'; gate.setAttribute('aria-hidden','true'); }
     function showGate(){ frame.style.visibility='hidden'; gate.classList.remove('is-complete'); gate.removeAttribute('aria-hidden'); setState('google'); }
-    function send(data){ lastMessage=data; if(frame && frame.contentWindow) frame.contentWindow.postMessage(data,'*'); }
-    if(frame) frame.addEventListener('load',function(){ if(lastMessage) setTimeout(function(){ frame.contentWindow.postMessage(lastMessage,'*'); },250); });
+    function send(data){ lastMessage=data; if(bridgeReady && frame && frame.contentWindow) frame.contentWindow.postMessage(data,'*'); }
+    if(frame) frame.addEventListener('load',function(){ setTimeout(function(){ if(lastMessage && bridgeReady) frame.contentWindow.postMessage(lastMessage,'*'); },250); });
     function onCredential(response){
       credential=response && response.credential ? response.credential : '';
       if(!credential) return;
@@ -421,6 +422,7 @@
     document.getElementById('mwkcnStudentNo').addEventListener('input',function(){ this.value=this.value.replace(/\D/g,'').slice(0,5); });
     window.addEventListener('message',function(event){
       if(!frame || event.source!==frame.contentWindow || !frameOrigins.has(event.origin) || !event.data) return;
+      if(event.data.type==='mwkcn:google-bridge-ready'){ bridgeReady=true; if(lastMessage) frame.contentWindow.postMessage(lastMessage,'*'); }
       if(event.data.type==='mwkcn:need-student-number'){ if(authTimer) clearTimeout(authTimer); setState('student'); }
       if(event.data.type==='mwkcn:google-auth-error'){ if(authTimer) clearTimeout(authTimer); setState('google',event.data.message||'ตรวจสอบ Google ไม่สำเร็จ'); }
       if(event.data.type==='mwkcn:student-identified'){ if(authTimer) clearTimeout(authTimer); showApp(); }
