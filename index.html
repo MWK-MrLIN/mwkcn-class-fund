@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <base target="_top">
   <title>MWKCN Class Fund</title>
-
   <!-- PWA: ชื่อแอปและไอคอนจริงจากโลโก้ MWKCN -->
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
@@ -16,7 +15,6 @@
   <meta name="mobile-web-app-capable" content="yes">
   <!-- OneSignal Web Push SDK: ใช้ App ID สาธารณะเท่านั้น -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-
   <style>
     html,
     body {
@@ -27,7 +25,6 @@
       overflow: hidden;
       background: #f3f6fb;
     }
-
     iframe {
       position: fixed;
       inset: 0;
@@ -37,7 +34,6 @@
       height: 100dvh;
       border: 0;
     }
-
   </style>
 </head>
 <body>
@@ -48,9 +44,6 @@
     loading="eager"
     allow="fullscreen; notifications">
   </iframe>
-
-
-
   <script>
     (function initMwkcnOneSignal() {
       const appFrame = document.getElementById('appFrame');
@@ -63,16 +56,13 @@
       let currentStudentId = '';
       let oneSignalReady = false;
       let notificationBusy = false;
-
       function cleanStudentId(value) {
         const normalized = String(value == null ? '' : value).trim();
         return /^[A-Za-z0-9_-]{3,64}$/.test(normalized) ? normalized : '';
       }
-
       function browserNotificationPermission() {
         return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
       }
-
       function oneSignalIsEnabled() {
         try {
           var subscription = window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription;
@@ -81,7 +71,6 @@
           return false;
         }
       }
-
       function waitForNotificationState(expected, timeoutMs) {
         var startedAt = Date.now();
         return new Promise(function (resolve) {
@@ -96,7 +85,6 @@
           check();
         });
       }
-
       async function sendActivationTestNotification() {
         if (browserNotificationPermission() !== 'granted') return false;
         var notificationOptions = {
@@ -126,7 +114,6 @@
           return false;
         }
       }
-
       function publishNotificationState(message, isError) {
         if (!appFrame || !appFrame.contentWindow) return;
         var enabled = oneSignalIsEnabled();
@@ -143,7 +130,6 @@
         };
         appFrame.contentWindow.postMessage(state, '*');
       }
-
       async function setNotificationOptIn(enabled) {
         if (notificationBusy) return;
         if (!currentStudentId) {
@@ -192,7 +178,6 @@
           publishNotificationState(finalMessage, finalError);
         }
       }
-
       async function restoreNotificationSubscription() {
         if (!oneSignalReady || !window.OneSignal || browserNotificationPermission() !== 'granted') return false;
         try {
@@ -207,7 +192,6 @@
           return false;
         }
       }
-
       async function identifyOneSignalUser(studentId) {
         const cleanId = cleanStudentId(studentId);
         if (!cleanId) return false;
@@ -231,7 +215,6 @@
           return false;
         }
       }
-
       function askFrameForStudentId() {
         try {
           if (appFrame && appFrame.contentWindow) {
@@ -241,7 +224,6 @@
           console.warn('Unable to request student ID from Apps Script frame:', error);
         }
       }
-
       window.addEventListener('message', function (event) {
         if (!allowedFrameOrigins.has(event.origin)) return;
         if (!event.data) return;
@@ -272,10 +254,8 @@
           }
         }
       });
-
       if (appFrame) appFrame.addEventListener('load', function () { window.setTimeout(askFrameForStudentId, 250); window.setTimeout(askFrameForStudentId, 1500); });
       window.setInterval(function () { if (!currentStudentId) askFrameForStudentId(); }, 5000);
-
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.OneSignalDeferred.push(async function (OneSignal) {
         try {
@@ -296,23 +276,19 @@
       });
     })();
   </script>
-
   <script>
     (function loadAppsScriptPageInsideWrapper() {
       const appFrame = document.getElementById('appFrame');
       const appUrl = new URL('https://script.google.com/macros/s/AKfycbyP5P3eZYr0BF4LacWmkO2mOahm9Go4uuAnk8bTu97f7r7jdwQUEOttJqQUyRtQQKAX/exec');
       const wrapperParams = new URLSearchParams(window.location.search);
-
       // ส่งต่อเฉพาะพารามิเตอร์หน้าที่จำเป็น เพื่อให้ลิงก์ studentViolation เปลี่ยนตามบัญชีที่ล็อกอิน
       ['page', 'id'].forEach(function (key) {
         if (wrapperParams.has(key)) {
           appUrl.searchParams.set(key, wrapperParams.get(key));
         }
       });
-
       appFrame.src = appUrl.toString();
     })();
-
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('./service-worker.js', { scope: './' })
@@ -322,7 +298,6 @@
       });
     }
   </script>
-
   <script id="mwkcn-sound-bridge">
     (function initMwkcnSoundBridge() {
       const SOUND_KEY = 'MWKCN_SOUND_EFFECTS_ENABLED';
@@ -354,6 +329,52 @@
       });
       if (appFrame) appFrame.addEventListener('load', publish);
     })();
+  </script>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    #mwkcnGoogleLoginPanel { position:fixed; z-index:100; top:16px; right:16px; padding:10px; background:#fff; border-radius:14px; box-shadow:0 6px 24px rgba(20,32,51,.18); }
+    #mwkcnGoogleLoginPanel[hidden] { display:none; }
+    @media (max-width:600px) { #mwkcnGoogleLoginPanel { top:8px; right:8px; transform:scale(.88); transform-origin:top right; } }
+  </style>
+  <div id="mwkcnGoogleLoginPanel"><div id="mwkcnGoogleSignInButton"></div></div>
+  <script id="mwkcn-google-login-wrapper">
+  (function () {
+    'use strict';
+    var CLIENT_ID = '124359726395-e8fq3st6gakf25at9mvkb1jlbfbp7dfl.apps.googleusercontent.com';
+    var frame = document.getElementById('appFrame');
+    var frameOrigins = new Set(['https://script.google.com', 'https://script.googleusercontent.com']);
+    var credential = '';
+    var waitingForStudentNo = false;
+    function send(data) { if (frame && frame.contentWindow) frame.contentWindow.postMessage(data, '*'); }
+    function askStudentNo() {
+      var value = window.prompt('กรุณาใส่เลขนักเรียน 5 หลักเพื่อผูกกับบัญชี Google นี้');
+      var studentNo = String(value || '').replace(/\D/g, '');
+      if (!/^\d{5}$/.test(studentNo)) { alert('เลขนักเรียนต้องเป็นตัวเลข 5 หลัก'); return; }
+      waitingForStudentNo = false;
+      send({ type:'mwkcn:google-credential', credential:credential, studentNo:studentNo });
+    }
+    function onCredential(response) {
+      credential = response && response.credential ? response.credential : '';
+      if (!credential) return;
+      if (waitingForStudentNo) askStudentNo();
+      else send({ type:'mwkcn:google-credential', credential:credential });
+    }
+    function init() {
+      if (!window.google || !google.accounts || !google.accounts.id) { window.setTimeout(init, 300); return; }
+      google.accounts.id.initialize({ client_id:CLIENT_ID, callback:onCredential, auto_select:true, cancel_on_tap_outside:false });
+      google.accounts.id.renderButton(document.getElementById('mwkcnGoogleSignInButton'), { theme:'outline', size:'large', text:'signin_with', shape:'rectangular', width:280 });
+      google.accounts.id.prompt();
+    }
+    window.addEventListener('message', function (event) {
+      if (!frame || event.source !== frame.contentWindow || !frameOrigins.has(event.origin) || !event.data) return;
+      if (event.data.type === 'mwkcn:need-student-number') { waitingForStudentNo = true; if (credential) askStudentNo(); else google.accounts.id.prompt(); }
+      if (event.data.type === 'mwkcn:student-logged-out') { credential=''; waitingForStudentNo=false; google.accounts.id.disableAutoSelect(); }
+      if (event.data.type === 'mwkcn:student-identified') { document.getElementById('mwkcnGoogleLoginPanel').hidden=true; }
+    });
+    window.addEventListener('load', init);
+    if (document.readyState !== 'loading') init();
+  })();
   </script>
 
 </body>
