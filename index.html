@@ -69,15 +69,27 @@
       function sendCredential(response) {
         const frame = document.getElementById('appFrame');
         if (!response || !response.credential || !frame || !frame.contentWindow) return;
-        hideOverlay(); frame.contentWindow.postMessage({ type: 'mwkcn:google-credential', credential: response.credential }, '*');
+        hideOverlay();
+        try { localStorage.setItem('MWKCN_GOOGLE_LOGIN_HINT', '1'); } catch (ignore) {}
+        frame.contentWindow.postMessage({ type: 'mwkcn:google-credential', credential: response.credential }, '*');
       }
       function render() {
         if (!window.google || !google.accounts || !google.accounts.id || !button) return;
-        google.accounts.id.initialize({ client_id: clientId, callback: sendCredential, auto_select: false, cancel_on_tap_outside: true });
+        google.accounts.id.initialize({ client_id: clientId, callback: sendCredential, auto_select: true, cancel_on_tap_outside: false });
         google.accounts.id.renderButton(button, { theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', width: 300 });
       }
       window.setTimeout(render, 300); window.setTimeout(render, 1200);
-      window.mwkcnShowGoogleLogin = function () { if (overlay) overlay.classList.remove('is-hidden'); };
+      // Reuse the currently signed-in Google account after the app is reopened.
+      window.setTimeout(function () {
+        if (window.google && google.accounts && google.accounts.id) {
+          google.accounts.id.prompt(function (notification) {
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              // The normal Google button remains available if silent restore is unavailable.
+            }
+          });
+        }
+      }, 1400);
+      window.mwkcnShowGoogleLogin = function () { if (overlay) overlay.classList.remove('is-hidden'); try { localStorage.removeItem('MWKCN_GOOGLE_LOGIN_HINT'); } catch (ignore) {} };
       window.mwkcnHideGoogleLogin = hideOverlay;
     })();
 
