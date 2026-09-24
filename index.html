@@ -65,13 +65,16 @@
       const overlay = document.getElementById('mwkcnGoogleAuthOverlay');
       const button = document.getElementById('mwkcnGoogleSignInButton');
       const clientId = '124359726395-e8fq3st6gakf25at9mvkb1jlbfbp7dfl.apps.googleusercontent.com';
+      let pendingCredential = '';
+      function deliverCredential() { const frame = document.getElementById('appFrame'); if (pendingCredential && frame && frame.contentWindow) frame.contentWindow.postMessage({ type: 'mwkcn:google-credential', credential: pendingCredential }, '*'); }
       function hideOverlay() { if (overlay) overlay.classList.add('is-hidden'); }
       function sendCredential(response) {
         const frame = document.getElementById('appFrame');
         if (!response || !response.credential || !frame || !frame.contentWindow) return;
         hideOverlay();
+        pendingCredential = String(response.credential);
         try { localStorage.setItem('MWKCN_GOOGLE_LOGIN_HINT', '1'); } catch (ignore) {}
-        frame.contentWindow.postMessage({ type: 'mwkcn:google-credential', credential: response.credential }, '*');
+        deliverCredential();
       }
       function render() {
         if (!window.google || !google.accounts || !google.accounts.id || !button) return;
@@ -79,6 +82,8 @@
         google.accounts.id.renderButton(button, { theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', width: 300 });
       }
       window.setTimeout(render, 300); window.setTimeout(render, 1200);
+      const frame = document.getElementById('appFrame');
+      if (frame) frame.addEventListener('load', function () { window.setTimeout(deliverCredential, 250); });
       // Reuse the currently signed-in Google account after the app is reopened.
       window.setTimeout(function () {
         if (window.google && google.accounts && google.accounts.id) {
