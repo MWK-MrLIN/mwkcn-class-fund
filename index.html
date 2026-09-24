@@ -16,6 +16,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <!-- OneSignal Web Push SDK: ใช้ App ID สาธารณะเท่านั้น -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <!-- Google Identity Services: ใช้ยืนยันตัวตนด้วยบัญชี Google -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
 
   <style>
     html,
@@ -26,6 +28,7 @@
       margin: 0;
       overflow: hidden;
       background: #f3f6fb;
+      font-family: 'Segoe UI', 'Sarabun', system-ui, sans-serif;
     }
 
     iframe {
@@ -38,9 +41,101 @@
       border: 0;
     }
 
+    /* หน้าจอเข้าสู่ระบบ (ครอบ iframe จนกว่าจะยืนยันตัวตนสำเร็จ) */
+    #loginOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: linear-gradient(160deg, #1769e0 0%, #0d47a1 100%);
+      color: #fff;
+      text-align: center;
+      padding: 24px;
+      box-sizing: border-box;
+      transition: opacity .3s ease;
+    }
+
+    #loginOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #loginOverlay .logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.3);
+    }
+
+    #loginOverlay h1 {
+      margin: 8px 0 0;
+      font-size: 1.5rem;
+    }
+
+    #loginOverlay p {
+      margin: 0;
+      opacity: .85;
+      font-size: .95rem;
+    }
+
+    #loginOverlay .status {
+      min-height: 1.4em;
+      font-size: .9rem;
+      opacity: .95;
+    }
+
+    #loginOverlay .status.error { color: #ffd6d6; font-weight: 600; }
+
+    #googleSignInBtn {
+      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 24px;
+      border: 0;
+      border-radius: 999px;
+      background: #fff;
+      color: #1a1a1a;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,.25);
+    }
+
+    #googleSignInBtn:active { transform: scale(.97); }
+
+    #googleSignInBtn svg { width: 20px; height: 20px; }
+
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
+<base target="_blank">
 </head>
 <body>
+  <!-- หน้าจอเข้าสู่ระบบด้วย Google -->
+  <div id="loginOverlay">
+    <img class="logo" src="./icons/icon-192.png" alt="MWKCN Class Fund">
+    <h1>MWKCN Class Fund</h1>
+    <p>กองทุนห้องเรียน โรงเรียนเมืองแม่หล่ายวิทยาคม</p>
+    <div class="spinner" id="loginSpinner"></div>
+    <div class="status" id="loginStatus">กำลังตรวจสอบการเข้าสู่ระบบ...</div>
+    <button id="googleSignInBtn" style="display:none">
+      <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.7-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41 35.4 44 30.2 44 24c0-1.3-.1-2.7-.4-3.9z"/></svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+  </div>
+
   <iframe
     id="appFrame"
     src="about:blank"
@@ -49,7 +144,166 @@
     allow="fullscreen; notifications">
   </iframe>
 
+  <script>
+    /* ============================================================
+       ระบบเข้าสู่ระบบด้วย Google (Google Identity Services)
+       - ปุ่ม/One Tap ทำงานที่หน้า wrapper นี้ (origin ที่ลงทะเบียนไว้)
+       - เมื่อได้ ID Token จะส่งเข้า iframe ให้ Apps Script ตรวจสอบ
+       ============================================================ */
+    (function initMwkcnAuth() {
+      const GOOGLE_CLIENT_ID = 'XXXXX.apps.googleusercontent.com'; // TODO: แทนที่ด้วย Client ID ของคุณ
+      const overlay = document.getElementById('loginOverlay');
+      const statusEl = document.getElementById('loginStatus');
+      const spinner = document.getElementById('loginSpinner');
+      const signInBtn = document.getElementById('googleSignInBtn');
+      const appFrame = document.getElementById('appFrame');
+      const LOGGED_OUT_KEY = 'MWKCN_LOGGED_OUT';
+      const allowedFrameOrigins = new Set([
+        'https://script.google.com',
+        'https://script.googleusercontent.com'
+      ]);
+      let credentialSent = false;
 
+      function isLoggedOut() {
+        return localStorage.getItem(LOGGED_OUT_KEY) === 'true';
+      }
+
+      function setStatus(msg, isError) {
+        statusEl.textContent = msg || '';
+        statusEl.classList.toggle('error', Boolean(isError));
+      }
+
+      function showSignInButton() {
+        spinner.style.display = 'none';
+        signInBtn.style.display = 'inline-flex';
+      }
+
+      function hideOverlay() {
+        overlay.classList.add('hidden');
+      }
+
+      // ส่ง ID Token เข้า iframe ให้ Apps Script ยืนยันตัวตน
+      function sendCredentialToApp(token) {
+        credentialSent = true;
+        localStorage.removeItem(LOGGED_OUT_KEY);
+        setStatus('กำลังยืนยันตัวตนกับเซิร์ฟเวอร์...');
+        try {
+          appFrame.contentWindow.postMessage(
+            { type: 'mwkcn:google-credential', token: token },
+            '*'
+          );
+        } catch (err) {
+          console.warn('ส่ง credential เข้า iframe ไม่สำเร็จ:', err);
+          setStatus('เชื่อมต่อแอปไม่สำเร็จ กรุณารีเฟรชหน้า', true);
+          showSignInButton();
+        }
+      }
+
+      function initGis(useAutoSelect) {
+        if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+          setStatus('โหลดระบบเข้าสู่ระบบไม่สำเร็จ กรุณารีเฟรชหน้า', true);
+          showSignInButton();
+          return;
+        }
+        google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: function (response) {
+            if (response && response.credential) {
+              sendCredentialToApp(response.credential);
+            } else {
+              setStatus('เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่', true);
+              showSignInButton();
+            }
+          },
+          auto_select: useAutoSelect,
+          cancel_on_tap_outside: false
+        });
+      }
+
+      // แสดง One Tap / ปุ่มเข้าสู่ระบบ
+      function promptSignIn() {
+        const auto = !isLoggedOut();
+        initGis(auto);
+        try {
+          google.accounts.id.prompt(function (notification) {
+            // ถ้า One Tap แสดงไม่ได้ (เช่น เคลียร์คุกกี้, มีหลายบัญชี) ให้ใช้ปุ่มแทน
+            if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+              showSignInButton();
+            }
+          });
+        } catch (err) {
+          showSignInButton();
+        }
+      }
+
+      signInBtn.addEventListener('click', function () {
+        initGis(false);
+        google.accounts.id.prompt(function (notification) {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            setStatus('ไม่สามารถแสดงหน้าต่างเข้าสู่ระบบได้ กรุณาอนุญาตป็อปอัป/คุกกี้ของเว็บนี้', true);
+          }
+        });
+      });
+
+      // รับผลการยืนยันตัวตนจาก Apps Script
+      window.addEventListener('message', function (event) {
+        if (!allowedFrameOrigins.has(event.origin)) return;
+        if (!event.data) return;
+        if (event.source !== appFrame.contentWindow) return;
+
+        if (event.data.type === 'mwkcn:auth-state') {
+          const status = event.data.status;
+          if (status === 'registered') {
+            // เคยลงทะเบียนแล้ว -> เข้าหน้าเว็บทันที
+            hideOverlay();
+          } else if (status === 'need-register') {
+            // ครั้งแรก -> ให้แอปใน iframe แสดงฟอร์มกรอกเลขนักเรียน
+            hideOverlay();
+          } else if (status === 'invalid') {
+            localStorage.setItem(LOGGED_OUT_KEY, 'true');
+            setStatus(event.data.message || 'การเข้าสู่ระบบไม่ถูกต้อง กรุณาลองใหม่', true);
+            showSignInButton();
+          }
+          return;
+        }
+
+        // แอปขอให้ wrapper ทำ Google Sign-in ใหม่
+        if (event.data.type === 'mwkcn:request-google-signin') {
+          overlay.classList.remove('hidden');
+          localStorage.setItem(LOGGED_OUT_KEY, 'true');
+          showSignInButton();
+          setStatus('กรุณาเข้าสู่ระบบด้วยบัญชี Google');
+          return;
+        }
+      });
+
+      // เริ่มทำงานเมื่อ iframe โหลด (ต้องมี iframe พร้อมรับ token ก่อน)
+      appFrame.addEventListener('load', function () {
+        window.setTimeout(function () {
+          if (!credentialSent) {
+            if (isLoggedOut()) {
+              setStatus('กรุณาเข้าสู่ระบบด้วยบัญชี Google');
+              showSignInButton();
+            } else {
+              promptSignIn(); // One Tap / auto select
+            }
+          }
+        }, 400);
+      });
+
+      // กันพลาด: ถ้า 4 วินาที iframe ยังไม่พร้อม ให้เริ่มตรวจสอบสถานะใหม่
+      window.setTimeout(function () {
+        if (!credentialSent) {
+          if (isLoggedOut()) {
+            setStatus('กรุณาเข้าสู่ระบบด้วยบัญชี Google');
+            showSignInButton();
+          } else {
+            promptSignIn();
+          }
+        }
+      }, 4000);
+    })();
+  </script>
 
   <script>
     (function initMwkcnOneSignal() {
@@ -252,7 +506,7 @@
         }
         if (event.data.type === 'mwkcn:student-logged-out') {
           currentStudentId = '';
-          if (oneSignalReady && window.OneSignal?.logout) {
+          if (oneSignalReady && window.OneSignal && window.OneSignal.logout) {
             window.OneSignal.logout().catch(function (error) {
               console.warn('OneSignal logout failed:', error);
             });
