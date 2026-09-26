@@ -401,6 +401,7 @@
       const STORAGE_KEY = 'MWKCN_EMAIL_STUDENT_SESSION_V1';
       const ALLOWED_FRAME_ORIGINS = new Set(['https://script.google.com', 'https://script.googleusercontent.com']);
       let appOrigin = '';
+      let appContentWindow = null;
       let pendingLoginTimeout = null;
       let restoreStarted = false;
       function setStatus(message, isError) {
@@ -418,9 +419,30 @@
         return null;
       }
       function clearSaved() { try { localStorage.removeItem(STORAGE_KEY); } catch (error) { } }
+      function isInsideAppFrame(source, root, depth) {
+        if (source === root) return true;
+        if (!root || depth > 6) return false;
+        let count = 0;
+        try { count = root.frames.length; } catch (error) { return false; }
+        for (let i = 0; i < count; i++) {
+          let child;
+          try { child = root.frames[i]; } catch (error) { continue; }
+          if (source === child || isInsideAppFrame(source, child, depth + 1)) return true;
+        }
+        return false;
+      }
+      function requestAuthFromFrameTree(root, depth) {
+        if (!root || depth > 6) return;
+        try { root.postMessage({ type:'mwkcn:request-auth-state' }, '*'); } catch (error) { }
+        let count = 0;
+        try { count = root.frames.length; } catch (error) { return; }
+        for (let i = 0; i < count; i++) {
+          try { requestAuthFromFrameTree(root.frames[i], depth + 1); } catch (error) { }
+        }
+      }
       function sendToApp(type, credentials) {
-        if (!appOrigin || !appFrame || !appFrame.contentWindow) return false;
-        appFrame.contentWindow.postMessage(Object.assign({ type:type }, credentials || {}), appOrigin);
+        if (!appOrigin || !appContentWindow) return false;
+        appContentWindow.postMessage(Object.assign({ type:type }, credentials || {}), appOrigin);
         return true;
       }
       function submitCredentials(email, studentId, restoring) {
@@ -450,10 +472,15 @@
         submitCredentials(saved.email, saved.studentId, true);
       }
       window.addEventListener('message', function (event) {
-        if (!ALLOWED_FRAME_ORIGINS.has(event.origin) || !appFrame || event.source !== appFrame.contentWindow || !event.data) return;
-        appOrigin = event.origin;
+        if (!ALLOWED_FRAME_ORIGINS.has(event.origin) || !appFrame || !event.data || !isInsideAppFrame(event.source, appFrame.contentWindow, 0)) return;
         const data = event.data;
-        if (data.type === 'mwkcn:app-ready') { requestRestore(); return; }
+        if (data.type === 'mwkcn:app-ready') {
+          appOrigin = event.origin;
+          appContentWindow = event.source;
+          requestRestore();
+          return;
+        }
+        if (!appContentWindow || event.source !== appContentWindow || event.origin !== appOrigin) return;
         if (data.type === 'mwkcn:student-login-complete') {
           if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
           const studentId = String(data.studentId || '').replace(/[^0-9]/g, '');
@@ -488,7 +515,11 @@
       });
       if (passwordInput) passwordInput.addEventListener('input', function () { passwordInput.value = passwordInput.value.replace(/[^0-9]/g, '').slice(0, 5); });
       if (appFrame) appFrame.addEventListener('load', function () {
-        appFrame.contentWindow.postMessage({ type:'mwkcn:request-auth-state' }, '*');
+        appContentWindow = null;
+        appOrigin = '';
+        [0, 500, 1500, 3500].forEach(function (delay) {
+          window.setTimeout(function () { requestAuthFromFrameTree(appFrame.contentWindow, 0); }, delay);
+        });
       });
       showGate('กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ');
     })();
