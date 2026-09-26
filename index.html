@@ -38,19 +38,6 @@
       border: 0;
     }
 
-
-    #mwkcnEmailLoginGate { position:fixed; inset:0; z-index:100000; display:grid; place-items:center; padding:20px; background:rgba(243,246,251,.96); backdrop-filter:blur(10px); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:#142033; }
-    #mwkcnEmailLoginGate[hidden] { display:none; }
-    .mwkcn-login-card { width:min(100%,420px); padding:30px 26px; border:1px solid #e4eaf2; border-radius:24px; background:#fff; box-shadow:0 24px 70px rgba(34,61,102,.16); text-align:center; }
-    .mwkcn-login-card h1 { margin:0 0 8px; font-size:1.45rem; }
-    .mwkcn-login-card p { color:#657286; line-height:1.55; margin:8px 0 18px; }
-    .mwkcn-login-field { display:block; margin:13px 0; text-align:left; color:#425066; font-weight:650; font-size:.93rem; }
-    .mwkcn-login-field input { display:block; width:100%; height:48px; margin-top:6px; border:1px solid #dbe3ef; border-radius:12px; padding:0 14px; font-size:1rem; }
-    #mwkcnEmailLoginButton { width:100%; margin-top:8px; padding:13px; border:0; border-radius:12px; background:#1769e0; color:white; font-weight:700; font-size:1rem; cursor:pointer; }
-    #mwkcnEmailLoginButton:disabled { opacity:.6; cursor:wait; }
-    #mwkcnLoginStatus { min-height:24px; margin-top:12px; color:#657286; font-size:.92rem; }
-    #mwkcnLoginStatus.error { color:#c93642; }
-    .mwkcn-login-note { font-size:.78rem !important; margin-top:18px !important; }
   </style>
 </head>
 <body>
@@ -61,24 +48,6 @@
     loading="eager"
     allow="fullscreen; notifications">
   </iframe>
-
-  <div id="mwkcnEmailLoginGate" role="dialog" aria-modal="true" aria-labelledby="mwkcnLoginTitle">
-    <main class="mwkcn-login-card">
-      <h1 id="mwkcnLoginTitle">เข้าสู่ระบบนักเรียน</h1>
-      <p>ใช้อีเมลที่บันทึกไว้ในคอลัมน์ Google Email และเลขประจำตัวนักเรียนเป็นรหัสผ่าน</p>
-      <form id="mwkcnEmailLoginForm" autocomplete="on">
-        <label class="mwkcn-login-field" for="mwkcnEmailInput">อีเมล
-          <input id="mwkcnEmailInput" type="email" inputmode="email" autocomplete="username" maxlength="254" placeholder="example@gmail.com" required>
-        </label>
-        <label class="mwkcn-login-field" for="mwkcnStudentIdInput">รหัสผ่าน (เลขประจำตัว 5 หลัก)
-          <input id="mwkcnStudentIdInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="5" pattern="[0-9]{5}" placeholder="เลขประจำตัวนักเรียน" required>
-        </label>
-        <button id="mwkcnEmailLoginButton" type="submit">เข้าสู่ระบบ</button>
-      </form>
-      <div id="mwkcnLoginStatus" aria-live="polite">กำลังเตรียมระบบเข้าสู่ระบบ...</div>
-      <p class="mwkcn-login-note">ระบบตรวจอีเมลและเลขประจำตัวกับ Google Sheet ไม่ได้ยืนยันตัวตนกับ Google; ผู้ที่รู้ข้อมูลทั้งสองอย่างอาจเข้าสู่ระบบได้</p>
-    </main>
-  </div>
 
 
 
@@ -384,144 +353,6 @@
         if (event.data.type === 'mwkcn:play-sound') { play(String(event.data.sound || '')); }
       });
       if (appFrame) appFrame.addEventListener('load', publish);
-    })();
-  </script>
-
-
-  <script>
-    (function initMwkcnEmailStudentLogin() {
-      'use strict';
-      const appFrame = document.getElementById('appFrame');
-      const gate = document.getElementById('mwkcnEmailLoginGate');
-      const form = document.getElementById('mwkcnEmailLoginForm');
-      const emailInput = document.getElementById('mwkcnEmailInput');
-      const passwordInput = document.getElementById('mwkcnStudentIdInput');
-      const button = document.getElementById('mwkcnEmailLoginButton');
-      const status = document.getElementById('mwkcnLoginStatus');
-      const STORAGE_KEY = 'MWKCN_EMAIL_STUDENT_SESSION_V1';
-      const ALLOWED_FRAME_ORIGINS = new Set(['https://script.google.com', 'https://script.googleusercontent.com']);
-      let appOrigin = '';
-      let appContentWindow = null;
-      let pendingLoginTimeout = null;
-      let restoreStarted = false;
-      function setStatus(message, isError) {
-        if (!status) return;
-        status.textContent = message || '';
-        status.classList.toggle('error', Boolean(isError));
-      }
-      function showGate(message, isError) { if (gate) gate.hidden = false; setStatus(message, isError); }
-      function hideGate() { if (gate) gate.hidden = true; }
-      function getSaved() {
-        try {
-          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-          if (saved && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(saved.email || '')) && /^\d{5}$/.test(String(saved.studentId || ''))) return saved;
-        } catch (error) { }
-        return null;
-      }
-      function clearSaved() { try { localStorage.removeItem(STORAGE_KEY); } catch (error) { } }
-      function isInsideAppFrame(source, root, depth) {
-        if (source === root) return true;
-        if (!root || depth > 6) return false;
-        let count = 0;
-        try { count = root.frames.length; } catch (error) { return false; }
-        for (let i = 0; i < count; i++) {
-          let child;
-          try { child = root.frames[i]; } catch (error) { continue; }
-          if (source === child || isInsideAppFrame(source, child, depth + 1)) return true;
-        }
-        return false;
-      }
-      function requestAuthFromFrameTree(root, depth) {
-        if (!root || depth > 6) return;
-        try { root.postMessage({ type:'mwkcn:request-auth-state' }, '*'); } catch (error) { }
-        let count = 0;
-        try { count = root.frames.length; } catch (error) { return; }
-        for (let i = 0; i < count; i++) {
-          try { requestAuthFromFrameTree(root.frames[i], depth + 1); } catch (error) { }
-        }
-      }
-      function sendToApp(type, credentials) {
-        if (!appOrigin || !appContentWindow) return false;
-        appContentWindow.postMessage(Object.assign({ type:type }, credentials || {}), appOrigin);
-        return true;
-      }
-      function submitCredentials(email, studentId, restoring) {
-        const cleanEmail = String(email || '').trim().toLowerCase();
-        const cleanId = String(studentId || '').replace(/[^0-9]/g, '').slice(0, 5);
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || !/^\d{5}$/.test(cleanId)) {
-          setStatus('กรุณากรอกอีเมลและเลขประจำตัวให้ถูกต้อง', true);
-          if (button) button.disabled = false;
-          return;
-        }
-        if (!appOrigin) { setStatus('กำลังเชื่อมต่อระบบ กรุณาลองใหม่อีกครั้ง', true); if (button) button.disabled = false; return; }
-        if (button) button.disabled = true;
-        setStatus(restoring ? 'กำลังตรวจสอบบัญชีที่บันทึกไว้...' : 'กำลังตรวจสอบอีเมลและรหัสผ่าน...');
-        if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
-        pendingLoginTimeout = window.setTimeout(function () {
-          if (restoring) clearSaved();
-          if (button) button.disabled = false;
-          setStatus('ตรวจสอบใช้เวลานาน กรุณาลองเข้าสู่ระบบอีกครั้ง', true);
-        }, 30000);
-        sendToApp(restoring ? 'mwkcn:restore-email-session' : 'mwkcn:email-student-login', { email:cleanEmail, studentId:cleanId });
-      }
-      function requestRestore() {
-        if (restoreStarted) return;
-        const saved = getSaved();
-        if (!saved) { showGate('กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ'); return; }
-        restoreStarted = true;
-        submitCredentials(saved.email, saved.studentId, true);
-      }
-      window.addEventListener('message', function (event) {
-        if (!ALLOWED_FRAME_ORIGINS.has(event.origin) || !appFrame || !event.data || !isInsideAppFrame(event.source, appFrame.contentWindow, 0)) return;
-        const data = event.data;
-        if (data.type === 'mwkcn:app-ready') {
-          appOrigin = event.origin;
-          appContentWindow = event.source;
-          requestRestore();
-          return;
-        }
-        if (!appContentWindow || event.source !== appContentWindow || event.origin !== appOrigin) return;
-        if (data.type === 'mwkcn:student-login-complete') {
-          if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
-          const studentId = String(data.studentId || '').replace(/[^0-9]/g, '');
-          const email = String(data.email || '').trim().toLowerCase();
-          if (!/^\d{5}$/.test(studentId) || !email) return;
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ email:email, studentId:studentId, savedAt:Date.now() })); } catch (error) { }
-          hideGate();
-          restoreStarted = false;
-          if (button) button.disabled = false;
-          if (passwordInput) passwordInput.value = '';
-          return;
-        }
-        if (data.type === 'mwkcn:student-login-failed') {
-          if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
-          if (restoreStarted) { clearSaved(); restoreStarted = false; }
-          if (button) button.disabled = false;
-          showGate(String(data.reason || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'), true);
-          if (passwordInput) passwordInput.value = '';
-          return;
-        }
-        if (data.type === 'mwkcn:student-logged-out') {
-          clearSaved();
-          restoreStarted = false;
-          if (form) form.reset();
-          if (button) button.disabled = false;
-          showGate('ออกจากระบบแล้ว กรุณาเข้าสู่ระบบอีกครั้ง');
-        }
-      });
-      if (form) form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        submitCredentials(emailInput.value, passwordInput.value, false);
-      });
-      if (passwordInput) passwordInput.addEventListener('input', function () { passwordInput.value = passwordInput.value.replace(/[^0-9]/g, '').slice(0, 5); });
-      if (appFrame) appFrame.addEventListener('load', function () {
-        appContentWindow = null;
-        appOrigin = '';
-        [0, 500, 1500, 3500].forEach(function (delay) {
-          window.setTimeout(function () { requestAuthFromFrameTree(appFrame.contentWindow, 0); }, delay);
-        });
-      });
-      showGate('กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ');
     })();
   </script>
 
