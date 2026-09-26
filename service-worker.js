@@ -1,217 +1,57 @@
-<!doctype html>
-<html lang="th">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <base target="_top">
-  <title>MWKCN Class Fund</title>
+const CACHE_NAME = 'mwkcn-class-fund-shell-v3';
+const APP_SHELL = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icons/icon-180.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
+];
 
-  <!-- PWA: ชื่อแอปและไอคอนจริงจากโลโก้ MWKCN -->
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
-  <meta name="theme-color" content="#1769e0">
-  <meta name="apple-mobile-web-app-title" content="MWKCN Class Fund">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <!-- OneSignal Web Push SDK: ใช้ App ID สาธารณะเท่านั้น -->
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
 
-  <style>
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      min-height: 100dvh;
-      margin: 0;
-      overflow: hidden;
-      background: #f3f6fb;
-    }
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((cacheNames) => Promise.all(
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
 
-    iframe {
-      position: fixed;
-      inset: 0;
-      display: block;
-      width: 100%;
-      height: 100%;
-      height: 100dvh;
-      border: 0;
-    }
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  const requestUrl = new URL(request.url);
 
-    #notificationPermissionButton {
-      position: fixed;
-      right: 16px;
-      bottom: calc(16px + env(safe-area-inset-bottom));
-      z-index: 20;
-      display: none;
-      align-items: center;
-      gap: 8px;
-      min-height: 42px;
-      padding: 10px 14px;
-      border: 0;
-      border-radius: 999px;
-      color: #fff;
-      background: #1769e0;
-      box-shadow: 0 10px 24px rgba(23, 105, 224, .28);
-      font: 700 14px Sarabun, sans-serif;
-      cursor: pointer;
-    }
+  // Never intercept the Google Apps Script iframe or any other cross-origin request.
+  if (request.method !== 'GET' || requestUrl.origin !== self.location.origin) {
+    return;
+  }
 
-    #notificationPermissionButton.is-ready {
-      display: inline-flex;
-    }
+  // Keep the wrapper current when online, with a cached fallback for poor connections.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
 
-    #notificationPermissionButton:disabled {
-      opacity: .65;
-      cursor: wait;
-    }
-
-    @media (max-width: 480px) {
-      #notificationPermissionButton {
-        right: 12px;
-        bottom: calc(12px + env(safe-area-inset-bottom));
-        min-height: 40px;
-        padding-inline: 12px;
-        font-size: 13px;
-      }
-    }
-  </style>
-</head>
-<body>
-  <iframe
-    id="appFrame"
-    src="about:blank"
-    title="MWKCN Class Fund"
-    loading="eager"
-    allow="fullscreen">
-  </iframe>
-
-  <button id="notificationPermissionButton" type="button" aria-label="เปิดการแจ้งเตือน">
-    <span aria-hidden="true">🔔</span>
-    <span>เปิดการแจ้งเตือน</span>
-  </button>
-
-  <script>
-    (function initMwkcnOneSignal() {
-      const appFrame = document.getElementById('appFrame');
-      const APP_ID = 'b9217e22-0f2e-41bc-821a-df4de8fd7035';
-      const WRAPPER_ORIGIN = window.location.origin;
-      const allowedFrameOrigins = new Set([
-        'https://script.google.com',
-        'https://script.googleusercontent.com'
-      ]);
-      const button = document.getElementById('notificationPermissionButton');
-      let currentStudentId = '';
-      let oneSignalReady = false;
-
-      function cleanStudentId(value) {
-        const normalized = String(value == null ? '' : value).trim();
-        return /^[A-Za-z0-9_-]{3,64}$/.test(normalized) ? normalized : '';
-      }
-
-      function setButtonState(text, visible, disabled) {
-        if (!button) return;
-        button.querySelector('span:last-child').textContent = text;
-        button.classList.toggle('is-ready', Boolean(visible));
-        button.disabled = Boolean(disabled);
-      }
-
-      async function identifyOneSignalUser(studentId) {
-        const cleanId = cleanStudentId(studentId);
-        if (!cleanId) return false;
-        currentStudentId = cleanId;
-        try {
-          if (oneSignalReady && window.OneSignal && window.OneSignal.login) {
-            await window.OneSignal.login(cleanId);
-          }
-          setButtonState('เปิดการแจ้งเตือน', true, false);
-          return true;
-        } catch (error) {
-          console.warn('OneSignal user identification failed:', error);
-          setButtonState('เปิดการแจ้งเตือน', true, false);
-          return false;
-        }
-      }
-
-      function askFrameForStudentId() {
-        try {
-          if (appFrame && appFrame.contentWindow) {
-            appFrame.contentWindow.postMessage({ type: 'mwkcn:request-student-id' }, '*');
-          }
-        } catch (error) {
-          console.warn('Unable to request student ID from Apps Script frame:', error);
-        }
-      }
-
-      window.addEventListener('message', function (event) {
-        if (!allowedFrameOrigins.has(event.origin)) return;
-        if (!event.data || event.data.type !== 'mwkcn:student-identified') return;
-        identifyOneSignalUser(event.data.studentId);
-      });
-
-      button?.addEventListener('click', async function () {
-        if (!currentStudentId) {
-          setButtonState('กรุณาเข้าสู่ระบบก่อน', true, false);
-          askFrameForStudentId();
-          return;
-        }
-        if (!oneSignalReady || !window.OneSignal) {
-          setButtonState('กำลังเตรียมระบบ...', true, true);
-          return;
-        }
-        button.disabled = true;
-        try {
-          await window.OneSignal.Notifications.requestPermission();
-          if (window.OneSignal.User?.PushSubscription?.optIn) {
-            await window.OneSignal.User.PushSubscription.optIn();
-          }
-          setButtonState('เปิดแจ้งเตือนแล้ว', true, true);
-        } catch (error) {
-          console.warn('OneSignal permission request failed:', error);
-          setButtonState('เปิดการแจ้งเตือน', true, false);
-        }
-      });
-
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({
-          appId: APP_ID,
-          serviceWorkerPath: 'push/onesignal/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/mwkcn-class-fund/push/onesignal/' },
-          notifyButton: { enable: false }
-        });
-        oneSignalReady = true;
-        if (currentStudentId) await identifyOneSignalUser(currentStudentId);
-        askFrameForStudentId();
-        setButtonState('เปิดการแจ้งเตือน', Boolean(currentStudentId), false);
-      });
-    })();
-  </script>
-
-  <script>
-    (function loadAppsScriptPageInsideWrapper() {
-      const appFrame = document.getElementById('appFrame');
-      const appUrl = new URL('https://script.google.com/macros/s/AKfycbwZpfYbEqpCbJsZe1FbaEAiyUj1dByrQKNT5Su2Fgz8HsT_lTeboWABJgQ0ZvMnI5ky/exec');
-      const wrapperParams = new URLSearchParams(window.location.search);
-
-      // ส่งต่อเฉพาะพารามิเตอร์หน้าที่จำเป็น เพื่อให้ลิงก์ studentViolation เปลี่ยนตามบัญชีที่ล็อกอิน
-      ['page', 'id'].forEach(function (key) {
-        if (wrapperParams.has(key)) {
-          appUrl.searchParams.set(key, wrapperParams.get(key));
-        }
-      });
-
-      appFrame.src = appUrl.toString();
-    })();
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-          .catch(function (error) {
-            console.warn('PWA service worker registration failed:', error);
-          });
-      });
-    }
-  </script>
-</body>
-</html>
+  event.respondWith(
+    caches.match(request).then((cachedResponse) => cachedResponse || fetch(request))
+  );
+});
