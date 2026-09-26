@@ -16,8 +16,6 @@
   <meta name="mobile-web-app-capable" content="yes">
   <!-- OneSignal Web Push SDK: ใช้ App ID สาธารณะเท่านั้น -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <!-- Google Identity Services: this page must be served from the OAuth-authorized custom domain. -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <style>
     html,
@@ -41,17 +39,15 @@
     }
 
 
-    #mwkcnGoogleLoginGate { position:fixed; inset:0; z-index:100000; display:grid; place-items:center; padding:20px; background:rgba(243,246,251,.96); backdrop-filter:blur(10px); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:#142033; }
-    #mwkcnGoogleLoginGate[hidden] { display:none; }
+    #mwkcnEmailLoginGate { position:fixed; inset:0; z-index:100000; display:grid; place-items:center; padding:20px; background:rgba(243,246,251,.96); backdrop-filter:blur(10px); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:#142033; }
+    #mwkcnEmailLoginGate[hidden] { display:none; }
     .mwkcn-login-card { width:min(100%,420px); padding:30px 26px; border:1px solid #e4eaf2; border-radius:24px; background:#fff; box-shadow:0 24px 70px rgba(34,61,102,.16); text-align:center; }
     .mwkcn-login-card h1 { margin:0 0 8px; font-size:1.45rem; }
     .mwkcn-login-card p { color:#657286; line-height:1.55; margin:8px 0 18px; }
-    #mwkcnGoogleButton { display:flex; justify-content:center; min-height:44px; margin:14px auto; }
-    #mwkcnGoogleEmail { color:#1769e0; font-weight:700; overflow-wrap:anywhere; }
-    #mwkcnStudentStep[hidden] { display:none; }
-    #mwkcnStudentNo { width:100%; height:48px; border:1px solid #dbe3ef; border-radius:12px; padding:0 14px; font-size:1rem; letter-spacing:.12em; text-align:center; }
-    #mwkcnBindButton { width:100%; margin-top:12px; padding:13px; border:0; border-radius:12px; background:#1769e0; color:white; font-weight:700; font-size:1rem; cursor:pointer; }
-    #mwkcnBindButton:disabled { opacity:.6; cursor:wait; }
+    .mwkcn-login-field { display:block; margin:13px 0; text-align:left; color:#425066; font-weight:650; font-size:.93rem; }
+    .mwkcn-login-field input { display:block; width:100%; height:48px; margin-top:6px; border:1px solid #dbe3ef; border-radius:12px; padding:0 14px; font-size:1rem; }
+    #mwkcnEmailLoginButton { width:100%; margin-top:8px; padding:13px; border:0; border-radius:12px; background:#1769e0; color:white; font-weight:700; font-size:1rem; cursor:pointer; }
+    #mwkcnEmailLoginButton:disabled { opacity:.6; cursor:wait; }
     #mwkcnLoginStatus { min-height:24px; margin-top:12px; color:#657286; font-size:.92rem; }
     #mwkcnLoginStatus.error { color:#c93642; }
     .mwkcn-login-note { font-size:.78rem !important; margin-top:18px !important; }
@@ -66,19 +62,21 @@
     allow="fullscreen; notifications">
   </iframe>
 
-  <div id="mwkcnGoogleLoginGate" role="dialog" aria-modal="true" aria-labelledby="mwkcnLoginTitle">
+  <div id="mwkcnEmailLoginGate" role="dialog" aria-modal="true" aria-labelledby="mwkcnLoginTitle">
     <main class="mwkcn-login-card">
       <h1 id="mwkcnLoginTitle">เข้าสู่ระบบนักเรียน</h1>
-      <p>เข้าสู่ระบบด้วยบัญชี Gmail ส่วนตัว จากนั้นกรอกเลขประจำตัวนักเรียนเพื่อเชื่อมบัญชีครั้งแรก</p>
-      <div id="mwkcnGoogleButton"></div>
-      <div id="mwkcnStudentStep" hidden>
-        <p>บัญชีที่เลือก: <span id="mwkcnGoogleEmail"></span></p>
-        <label for="mwkcnStudentNo">เลขประจำตัวนักเรียน (5 หลัก)</label>
-        <input id="mwkcnStudentNo" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="กรอกเลขประจำตัว">
-        <button id="mwkcnBindButton" type="button">เชื่อมบัญชีและเข้าสู่ระบบ</button>
-      </div>
+      <p>ใช้อีเมลที่บันทึกไว้ในคอลัมน์ Google Email และเลขประจำตัวนักเรียนเป็นรหัสผ่าน</p>
+      <form id="mwkcnEmailLoginForm" autocomplete="on">
+        <label class="mwkcn-login-field" for="mwkcnEmailInput">อีเมล
+          <input id="mwkcnEmailInput" type="email" inputmode="email" autocomplete="username" maxlength="254" placeholder="example@gmail.com" required>
+        </label>
+        <label class="mwkcn-login-field" for="mwkcnStudentIdInput">รหัสผ่าน (เลขประจำตัว 5 หลัก)
+          <input id="mwkcnStudentIdInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="5" pattern="[0-9]{5}" placeholder="เลขประจำตัวนักเรียน" required>
+        </label>
+        <button id="mwkcnEmailLoginButton" type="submit">เข้าสู่ระบบ</button>
+      </form>
       <div id="mwkcnLoginStatus" aria-live="polite">กำลังเตรียมระบบเข้าสู่ระบบ...</div>
-      <p class="mwkcn-login-note">การกรอกเลขประจำตัวเพียงอย่างเดียวเป็นการยืนยันตัวตนระดับพื้นฐาน ผู้ที่ทราบเลขอาจผูกบัญชีแทนได้</p>
+      <p class="mwkcn-login-note">ระบบตรวจอีเมลและเลขประจำตัวกับ Google Sheet ไม่ได้ยืนยันตัวตนกับ Google; ผู้ที่รู้ข้อมูลทั้งสองอย่างอาจเข้าสู่ระบบได้</p>
     </main>
   </div>
 
@@ -391,154 +389,108 @@
 
 
   <script>
-    (function initMwkcnGoogleStudentLogin() {
+    (function initMwkcnEmailStudentLogin() {
       'use strict';
       const appFrame = document.getElementById('appFrame');
-      const gate = document.getElementById('mwkcnGoogleLoginGate');
+      const gate = document.getElementById('mwkcnEmailLoginGate');
+      const form = document.getElementById('mwkcnEmailLoginForm');
+      const emailInput = document.getElementById('mwkcnEmailInput');
+      const passwordInput = document.getElementById('mwkcnStudentIdInput');
+      const button = document.getElementById('mwkcnEmailLoginButton');
       const status = document.getElementById('mwkcnLoginStatus');
-      const step = document.getElementById('mwkcnStudentStep');
-      const emailNode = document.getElementById('mwkcnGoogleEmail');
-      const studentInput = document.getElementById('mwkcnStudentNo');
-      const bindButton = document.getElementById('mwkcnBindButton');
-      const STORAGE_KEY = 'MWKCN_GOOGLE_STUDENT_SESSION_V1';
-      // Public OAuth Web client ID (not a secret). Replace with the ID created for your verified custom domain.
-      const GOOGLE_CLIENT_ID = '124359726395-e8fq3st6gakf25at9mvkb1jlbfbp7dfl.apps.googleusercontent.com';
+      const STORAGE_KEY = 'MWKCN_EMAIL_STUDENT_SESSION_V1';
       const ALLOWED_FRAME_ORIGINS = new Set(['https://script.google.com', 'https://script.googleusercontent.com']);
       let appOrigin = '';
-      let googleCredential = '';
-      let emailForDisplay = '';
       let pendingLoginTimeout = null;
       let restoreStarted = false;
-
       function setStatus(message, isError) {
         if (!status) return;
         status.textContent = message || '';
         status.classList.toggle('error', Boolean(isError));
       }
-      function readSavedSession() {
+      function showGate(message, isError) { if (gate) gate.hidden = false; setStatus(message, isError); }
+      function hideGate() { if (gate) gate.hidden = true; }
+      function getSaved() {
         try {
           const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-          if (saved && /^\d{5}$/.test(String(saved.studentId || '')) && typeof saved.email === 'string') return saved;
+          if (saved && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(saved.email || '')) && /^\d{5}$/.test(String(saved.studentId || ''))) return saved;
         } catch (error) { }
         return null;
       }
-      function clearSavedSession() {
-        try { localStorage.removeItem(STORAGE_KEY); } catch (error) { }
-      }
-      function decodeEmail(idToken) {
-        try {
-          const part = String(idToken).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-          const normalized = part + '='.repeat((4 - part.length % 4) % 4);
-          const claims = JSON.parse(decodeURIComponent(Array.prototype.map.call(atob(normalized), c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join('')));
-          return String(claims.email || '').trim().toLowerCase();
-        } catch (error) { return ''; }
-      }
-      function hideGate() { if (gate) gate.hidden = true; }
-      function showGate(message, isError) { if (gate) gate.hidden = false; setStatus(message, isError); }
-      function sendToApp(message) {
+      function clearSaved() { try { localStorage.removeItem(STORAGE_KEY); } catch (error) { } }
+      function sendToApp(type, credentials) {
         if (!appOrigin || !appFrame || !appFrame.contentWindow) return false;
-        appFrame.contentWindow.postMessage(message, appOrigin);
+        appFrame.contentWindow.postMessage(Object.assign({ type:type }, credentials || {}), appOrigin);
         return true;
+      }
+      function submitCredentials(email, studentId, restoring) {
+        const cleanEmail = String(email || '').trim().toLowerCase();
+        const cleanId = String(studentId || '').replace(/[^0-9]/g, '').slice(0, 5);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || !/^\d{5}$/.test(cleanId)) {
+          setStatus('กรุณากรอกอีเมลและเลขประจำตัวให้ถูกต้อง', true);
+          if (button) button.disabled = false;
+          return;
+        }
+        if (!appOrigin) { setStatus('กำลังเชื่อมต่อระบบ กรุณาลองใหม่อีกครั้ง', true); if (button) button.disabled = false; return; }
+        if (button) button.disabled = true;
+        setStatus(restoring ? 'กำลังตรวจสอบบัญชีที่บันทึกไว้...' : 'กำลังตรวจสอบอีเมลและรหัสผ่าน...');
+        if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
+        pendingLoginTimeout = window.setTimeout(function () {
+          if (restoring) clearSaved();
+          if (button) button.disabled = false;
+          setStatus('ตรวจสอบใช้เวลานาน กรุณาลองเข้าสู่ระบบอีกครั้ง', true);
+        }, 30000);
+        sendToApp(restoring ? 'mwkcn:restore-email-session' : 'mwkcn:email-student-login', { email:cleanEmail, studentId:cleanId });
       }
       function requestRestore() {
         if (restoreStarted) return;
-        const saved = readSavedSession();
-        if (!saved) { showGate('ลงชื่อเข้าใช้ด้วย Google เพื่อดำเนินการต่อ'); return; }
+        const saved = getSaved();
+        if (!saved) { showGate('กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ'); return; }
         restoreStarted = true;
-        showGate('กำลังเปิดบัญชีที่บันทึกไว้...');
-        if (!sendToApp({ type:'mwkcn:restore-student', studentId:String(saved.studentId), email:String(saved.email || '') })) {
-          setStatus('กำลังเชื่อมต่อระบบ กรุณารอสักครู่...');
-          window.setTimeout(function () { restoreStarted = false; }, 3000);
-        }
-      }
-      function onGoogleCredential(response) {
-        googleCredential = String(response && response.credential || '');
-        emailForDisplay = decodeEmail(googleCredential);
-        if (!googleCredential || !emailForDisplay) {
-          setStatus('อ่านบัญชี Google ไม่สำเร็จ กรุณาลองอีกครั้ง', true);
-          return;
-        }
-        if (emailNode) emailNode.textContent = emailForDisplay;
-        if (step) step.hidden = false;
-        setStatus('กรอกเลขประจำตัวนักเรียนเพื่อเชื่อมกับบัญชีนี้');
-        if (studentInput) studentInput.focus();
-      }
-      function renderGoogleButton(attempt) {
-        if (window.google && google.accounts && google.accounts.id) {
-          if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf('PASTE_') === 0) {
-            setStatus('ต้องใส่ Google OAuth Web Client ID ในไฟล์นี้ก่อนใช้งาน', true);
-            return;
-          }
-          google.accounts.id.initialize({ client_id:GOOGLE_CLIENT_ID, callback:onGoogleCredential, auto_select:false });
-          google.accounts.id.renderButton(document.getElementById('mwkcnGoogleButton'), {
-            type:'standard', theme:'outline', size:'large', shape:'rectangular', text:'continue_with',
-            width:280, locale:'th'
-          });
-          setStatus('เลือกบัญชี Gmail ส่วนตัวเพื่อดำเนินการต่อ');
-          return;
-        }
-        if (attempt < 40) window.setTimeout(function () { renderGoogleButton(attempt + 1); }, 250);
-        else setStatus('โหลด Google Sign-In ไม่สำเร็จ กรุณาตรวจสอบเครือข่ายหรือการตั้งค่าเว็บไซต์', true);
-      }
-      function submitBinding() {
-        const id = String(studentInput && studentInput.value || '').replace(/[^0-9]/g, '');
-        if (!googleCredential) { setStatus('กรุณาเลือกบัญชี Google ก่อน', true); return; }
-        if (!/^\d{5}$/.test(id)) { setStatus('กรุณากรอกเลขประจำตัวนักเรียนให้ครบ 5 หลัก', true); studentInput && studentInput.focus(); return; }
-        if (!appOrigin) { setStatus('กำลังเชื่อมต่อระบบ กรุณาลองอีกครั้งในไม่กี่วินาที', true); return; }
-        bindButton.disabled = true;
-        setStatus('กำลังตรวจสอบ Google และบันทึกการเชื่อมบัญชี...');
-        if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
-        pendingLoginTimeout = window.setTimeout(function () {
-          bindButton.disabled = false;
-          setStatus('ระบบใช้เวลานาน กรุณาลองใหม่อีกครั้ง', true);
-        }, 30000);
-        sendToApp({ type:'mwkcn:google-student-login', studentId:id, credential:googleCredential });
+        submitCredentials(saved.email, saved.studentId, true);
       }
       window.addEventListener('message', function (event) {
         if (!ALLOWED_FRAME_ORIGINS.has(event.origin) || !appFrame || event.source !== appFrame.contentWindow || !event.data) return;
-        const data = event.data;
         appOrigin = event.origin;
+        const data = event.data;
         if (data.type === 'mwkcn:app-ready') { requestRestore(); return; }
         if (data.type === 'mwkcn:student-login-complete') {
           if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
           const studentId = String(data.studentId || '').replace(/[^0-9]/g, '');
-          const email = String(data.email || emailForDisplay || '').trim().toLowerCase();
-          if (/^\d{5}$/.test(studentId)) {
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ studentId:studentId, email:email, savedAt:Date.now() })); } catch (error) { }
-            hideGate();
-            googleCredential = '';
-            emailForDisplay = email;
-            if (bindButton) bindButton.disabled = false;
-          }
+          const email = String(data.email || '').trim().toLowerCase();
+          if (!/^\d{5}$/.test(studentId) || !email) return;
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ email:email, studentId:studentId, savedAt:Date.now() })); } catch (error) { }
+          hideGate();
+          restoreStarted = false;
+          if (button) button.disabled = false;
+          if (passwordInput) passwordInput.value = '';
           return;
         }
         if (data.type === 'mwkcn:student-login-failed') {
-          restoreStarted = false;
           if (pendingLoginTimeout) window.clearTimeout(pendingLoginTimeout);
-          if (bindButton) bindButton.disabled = false;
-          setStatus(String(data.reason || 'เข้าสู่ระบบไม่สำเร็จ'), true);
+          if (restoreStarted) { clearSaved(); restoreStarted = false; }
+          if (button) button.disabled = false;
+          showGate(String(data.reason || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'), true);
+          if (passwordInput) passwordInput.value = '';
           return;
         }
         if (data.type === 'mwkcn:student-logged-out') {
+          clearSaved();
           restoreStarted = false;
-          clearSavedSession();
-          googleCredential = '';
-          emailForDisplay = '';
-          if (step) step.hidden = true;
-          if (studentInput) studentInput.value = '';
-          if (bindButton) bindButton.disabled = false;
-          showGate('ออกจากระบบแล้ว กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง');
-          return;
+          if (form) form.reset();
+          if (button) button.disabled = false;
+          showGate('ออกจากระบบแล้ว กรุณาเข้าสู่ระบบอีกครั้ง');
         }
       });
-      if (studentInput) studentInput.addEventListener('input', function () { studentInput.value = studentInput.value.replace(/[^0-9]/g, '').slice(0, 5); });
-      if (bindButton) bindButton.addEventListener('click', submitBinding);
-      if (studentInput) studentInput.addEventListener('keydown', function (event) { if (event.key === 'Enter') submitBinding(); });
+      if (form) form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        submitCredentials(emailInput.value, passwordInput.value, false);
+      });
+      if (passwordInput) passwordInput.addEventListener('input', function () { passwordInput.value = passwordInput.value.replace(/[^0-9]/g, '').slice(0, 5); });
       if (appFrame) appFrame.addEventListener('load', function () {
         appFrame.contentWindow.postMessage({ type:'mwkcn:request-auth-state' }, '*');
       });
-      showGate('กำลังเตรียมระบบเข้าสู่ระบบ...');
-      renderGoogleButton(0);
+      showGate('กรอกอีเมลและรหัสผ่านเพื่อเข้าสู่ระบบ');
     })();
   </script>
 
