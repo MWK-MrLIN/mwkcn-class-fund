@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mwkcn-class-fund-shell-v3-google-login';
+const CACHE_NAME = 'mwkcn-class-fund-shell-v2';
 const APP_SHELL = [
   './',
   './index.html',
