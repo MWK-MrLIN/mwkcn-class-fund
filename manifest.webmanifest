@@ -5,7 +5,7 @@
   "scope": "./",
   "display": "standalone",
   "background_color": "#f3f6fb",
-  "theme_color": "#1769e0",
+  "theme_color": "#ffffff",
   "description": "ระบบกองทุนห้องเรียน MWKCN",
   "icons": [
     {
